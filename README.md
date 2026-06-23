@@ -66,7 +66,7 @@ stop-bot.cmd
 
 ## 重要檔案
 
-- `.private/persona.md`：伴侶人格、語氣、關係界線。
+- `.private/persona.md`：AI 人格、語氣、關係界線。
 - `.private/memory.md`：穩定記憶、重要日期、偏好。
 - `.private/people.md`：群友稱呼、關係、避免叫錯名字。
 - `.public/AGENTS.md`：公開頻道規則，控制什麼時候該回、什麼時候安靜。

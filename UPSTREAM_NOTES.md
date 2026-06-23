@@ -8,7 +8,7 @@
 
 原始目標是讓 Discord Bot 接到本機 Codex CLI，讓使用者能在 Discord 中和本機 Codex session 對話。
 
-這份模板在基本橋接之外，補上了幾個適合伴侶 Bot / 公開群聊場景的能力：
+這份模板在基本橋接之外，補上了幾個適合 AI Bot / 公開群聊場景的能力：
 
 - 私人測試頻道與公開群聊頻道分流。
 - 公開頻道由 Codex 判斷是否回覆，不相關時輸出 `NO_REPLY`。
@@ -18,7 +18,7 @@
 - 圖片與 Discord 自訂表情符號處理。
 - Discord 狀態文字。
 - Windows 新手用 start / stop / login cmd 腳本。
-- 可由 `.env` 設定伴侶名、使用者稱呼、呼叫名稱、公開呼叫名稱。
+- 可由 `.env` 設定 Bot 名稱、使用者稱呼、呼叫名稱、公開呼叫名稱。
 
 ## 相對原始簡單 Bridge 的主要追加
 
@@ -31,7 +31,7 @@ DISCORD_PUBLIC_CHANNEL_IDS=<channel-id>
 DISCORD_PUBLIC_MODE_ENABLED=true
 DISCORD_PUBLIC_DECISION_COOLDOWN_SECONDS=0
 DISCORD_PUBLIC_MAX_CONSECUTIVE_BOT_TURNS=3
-DISCORD_PUBLIC_BOT_CALL_NAMES=伴侶名,你的稱呼的伴侶
+DISCORD_PUBLIC_BOT_CALL_NAMES=
 ```
 
 行為：
@@ -48,16 +48,16 @@ DISCORD_PUBLIC_BOT_CALL_NAMES=伴侶名,你的稱呼的伴侶
 相關設定：
 
 ```env
-DISCORD_BOT_DISPLAY_NAME=伴侶名
-DISCORD_OWNER_DISPLAY_NAME=你的稱呼
-DISCORD_TRIGGER_NAMES=小夜,伴侶名,老公
-DISCORD_PUBLIC_BOT_CALL_NAMES=伴侶名,你的稱呼的伴侶
+DISCORD_BOT_DISPLAY_NAME=
+DISCORD_OWNER_DISPLAY_NAME=
+DISCORD_TRIGGER_NAMES=
+DISCORD_PUBLIC_BOT_CALL_NAMES=
 ```
 
 用途：
 
-- 避免程式硬寫特定使用者或伴侶名。
-- Discord mention 會轉成 `@伴侶名` 放入 prompt。
+- 避免程式硬寫特定使用者或 Bot 名稱。
+- Discord mention 會轉成 `@<bot-name>` 放入 prompt。
 - 公開模式會用這些名稱判斷是否和使用者 / Bot 相關。
 
 ### 3. Session 與記憶延續
@@ -103,7 +103,7 @@ CODEX_PUBLIC_SUMMARY_FILE=.public/memory-summary.md
 
 - `persona.md`：人格、語氣、關係界線。
 - `memory.md`：穩定記憶、重要日期、偏好。
-- `people.md`：群友稱呼、AI 伴侶名字、注意事項。
+- `people.md`：群友稱呼、AI 名稱、注意事項。
 - `.public/AGENTS.md`：公開頻道規則，保護隱私並控制插話。
 
 ### 5. 圖片與自訂表情符號
@@ -128,7 +128,7 @@ DISCORD_IMAGE_MAX_BYTES=10485760
 
 ```env
 DISCORD_ACTIVITY_TYPE=CUSTOM
-DISCORD_ACTIVITY_TEXT=陪你在 Discord 裡醒著
+DISCORD_ACTIVITY_TEXT=
 ```
 
 支援類型：

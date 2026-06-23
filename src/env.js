@@ -47,7 +47,7 @@ export function getConfig({
     ),
     allowedUserIds: [...new Set(allowedUserIds)],
     triggerNames: [...new Set(triggerNames)],
-    botDisplayName: process.env.DISCORD_BOT_DISPLAY_NAME || triggerNames[0] || "AI伴侶",
+    botDisplayName: process.env.DISCORD_BOT_DISPLAY_NAME || triggerNames[0] || "AI",
     ownerDisplayName: process.env.DISCORD_OWNER_DISPLAY_NAME || "使用者",
     publicBotCallNames: [
       ...new Set(publicBotCallNames.length > 0 ? publicBotCallNames : triggerNames)

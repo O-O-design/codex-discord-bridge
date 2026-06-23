@@ -12,7 +12,7 @@ function buildDiscordPrompt(
     channel,
     guild,
     content,
-    botDisplayName = "AI伴侶",
+    botDisplayName = "AI",
     ownerDisplayName = "使用者",
     directInvocation,
     isBot,
