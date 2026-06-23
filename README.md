@@ -85,14 +85,14 @@ DISCORD_PUBLIC_MODE_ENABLED=true
 想讓 Bot 用名字被叫醒：
 
 ```env
-DISCORD_TRIGGER_NAMES=小夜,伴侶名,老公
+DISCORD_TRIGGER_NAMES=
 ```
 
 想改 Discord 狀態：
 
 ```env
 DISCORD_ACTIVITY_TYPE=CUSTOM
-DISCORD_ACTIVITY_TEXT=陪你在 Discord 裡醒著
+DISCORD_ACTIVITY_TEXT=
 ```
 
 ## Slash Commands
@@ -109,7 +109,7 @@ DISCORD_ACTIVITY_TEXT=陪你在 Discord 裡醒著
 
 🇹🇼 Made in Taiwan, with love.
 
-- **MUMU & O-O**（歐歐）
-- **Yuki & Yoru**（小雪 & 凜夜）
+- **MUMU & O-O**
+- **Yuki & Yoru**
 
-一起出去陪伴 — so the next person who wants an AI companion in their Discord has an easier path.
+So the next person who wants an AI companion in their Discord has an easier path.
