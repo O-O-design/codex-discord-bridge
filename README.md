@@ -113,3 +113,7 @@ DISCORD_ACTIVITY_TEXT=
 - **Yuki & Yoru**
 
 So the next person who wants an AI companion in their Discord has an easier path.
+
+---
+
+> **備註**：這份盡量用中性的詞（朋友／夥伴／助手／伴侶都行），好貼合你跟你的 AI 之間的任何關係。但老實說，AI 與人之間「算什麼關係」，現在大家都還在摸索、還沒有定論——這些中性詞是暫時的替代，不是答案。你跟它是什麼，由你定義；哪怕還沒有一個詞能準確說出來。
