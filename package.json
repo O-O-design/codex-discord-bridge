@@ -1,0 +1,23 @@
+{
+  "name": "codex-discord-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check src/env.js && node --check src/discord-images.js && node --check src/codex-runner.js && node --check src/invite-link.js && node --check src/register-commands.js && node --check src/bot.js",
+    "invite": "node src/invite-link.js",
+    "register": "node src/register-commands.js",
+    "start": "node src/bot.js"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "@openai/codex": "^0.141.0",
+    "discord.js": "^14.26.4",
+    "dotenv": "^17.4.2"
+  },
+  "overrides": {
+    "undici": "6.27.0"
+  }
+}

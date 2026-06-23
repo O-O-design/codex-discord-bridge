@@ -1,0 +1,11 @@
+node_modules/
+.tools/
+.private/
+.public/
+.env
+.codex-discord-session
+.bot.pid
+bot.stdout.log
+bot.stderr.log
+.DS_Store
+npm-debug.log*
