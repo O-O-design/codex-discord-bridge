@@ -295,7 +295,7 @@ function enqueueCodexBatch(message, batch) {
       } catch (error) {
         console.error("[codex] failed:", error.message);
         if (error.stderr) {
-          console.error(error.stderr);
+          console.error(limitText(error.stderr, 2_000));
         }
         await appendRuntimeLog("codex_failed", {
           summary: `Codex failed in ${first.channel}: ${error.message}`,

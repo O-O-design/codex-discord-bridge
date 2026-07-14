@@ -65,7 +65,7 @@ export function getConfig({ requireDiscord = true } = {}) {
       process.env.CODEX_CLI_PATH?.trim() || "/Applications/Codex.app/Contents/Resources/codex",
     codexSessionFile: resolve(process.cwd(), codexSessionFile),
     codexSandbox: currentCodexSandbox(),
-    codexTimeoutMs: intEnv("CODEX_TIMEOUT_MS", 90_000),
+    codexTimeoutMs: intEnv("CODEX_TIMEOUT_MS", 180_000),
     discordBatchWindowMs: intEnv("DISCORD_BATCH_WINDOW_MS", 1_500),
     discordContextLimit: intEnv("DISCORD_CONTEXT_LIMIT", 10),
     bridgeLogFile: process.env.BRIDGE_LOG_FILE?.trim() || "logs/bridge.ndjson",

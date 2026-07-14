@@ -51,7 +51,7 @@ npm run check
 ## 對話節流
 
 - `DISCORD_BATCH_WINDOW_MS`：連續訊息合併視窗，預設 `1500`。
-- `CODEX_TIMEOUT_MS`：單次 Codex CLI 最長等待時間，預設 `90000`。
+- `CODEX_TIMEOUT_MS`：單次 Codex CLI 最長等待時間，預設 `180000`。
 - `DISCORD_CONTEXT_LIMIT`：每次回覆前讀取的最近頻道訊息數，預設 `10`。
 - `BRIDGE_LOG_FILE`：本機 runtime log 檔，預設 `logs/bridge.ndjson`，不發到 Discord、不進 git。
 - `BRIDGE_LOG_MESSAGE_LIMIT`：每筆 log 裡訊息與回覆摘要的最大字數，預設 `800`。
