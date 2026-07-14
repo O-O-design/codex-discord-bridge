@@ -1,9 +1,13 @@
 .env
+.env.*
+!.env.example
 node_modules/
 state/*
 !state/.gitkeep
 *.csv
 private/
+memory/*.private.md
+memory/*.local.md
 logs/
 dist/
 .DS_Store

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="/Users/mumu/Documents/Codex/oo-bridge"
+ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 
-echo "啟動 oo-bridge..."
+echo "Starting Codex Discord Bridge..."
 scripts/start-tmux.sh
 
-echo "啟動 monitor..."
+echo "Starting monitor..."
 scripts/start-monitor-tmux.sh
 
 MONITOR_PORT="$(
@@ -15,9 +15,9 @@ MONITOR_PORT="$(
 )"
 
 URL="http://127.0.0.1:${MONITOR_PORT}/widget"
-echo "開啟監控小工具：${URL}"
+echo "Opening widget: ${URL}"
 /usr/bin/open "$URL"
 
 echo
-echo "已開啟小工具視圖。這是窄版長條監控頁，之後可以包成桌面 APP。"
+echo "Widget view opened."
 sleep 5

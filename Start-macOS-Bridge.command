@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="/Users/mumu/Documents/Codex/oo-bridge"
+ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 
-echo "啟動 oo-bridge..."
+echo "Starting Codex Discord Bridge..."
 scripts/start-tmux.sh
 
-echo "啟動 monitor..."
+echo "Starting monitor..."
 scripts/start-monitor-tmux.sh
 
 MONITOR_PORT="$(
@@ -15,10 +15,10 @@ MONITOR_PORT="$(
 )"
 
 URL="http://127.0.0.1:${MONITOR_PORT}"
-echo "開啟監控視窗：${URL}"
+echo "Opening monitor: ${URL}"
 /usr/bin/open "$URL"
 
 echo
-echo "已啟動。可以關掉這個終端機小視窗，bridge 和 monitor 會留在背景 tmux 裡。"
-echo "如果要停止，雙擊「停止歐歐橋接.command」。"
+echo "Bridge and monitor are running in background tmux sessions."
+echo "Use Stop-macOS-Bridge.command to stop them."
 sleep 5

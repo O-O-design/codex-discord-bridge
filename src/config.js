@@ -60,6 +60,14 @@ function currentCodexSandbox() {
   return value && allowed.has(value) ? value : "workspace-write";
 }
 
+function defaultCodexCliPath() {
+  if (process.platform === "darwin") {
+    return "/Applications/Codex.app/Contents/Resources/codex";
+  }
+
+  return "codex";
+}
+
 export function getConfig({ requireDiscord = true } = {}) {
   const codexSessionFile = process.env.CODEX_SESSION_FILE?.trim() || "state/codex-session";
   const memberRosterFile = process.env.MEMBER_ROSTER_FILE?.trim();
@@ -81,8 +89,7 @@ export function getConfig({ requireDiscord = true } = {}) {
     threadIds,
     blockedChannelIds,
     blockedParentChannelIds,
-    codexCliPath:
-      process.env.CODEX_CLI_PATH?.trim() || "/Applications/Codex.app/Contents/Resources/codex",
+    codexCliPath: process.env.CODEX_CLI_PATH?.trim() || defaultCodexCliPath(),
     codexSessionFile: resolve(process.cwd(), codexSessionFile),
     codexSandbox: currentCodexSandbox(),
     codexTimeoutMs: intEnv("CODEX_TIMEOUT_MS", 180_000),

@@ -8,11 +8,11 @@
   <key>CFBundleExecutable</key>
   <string>OOBridgeWidget</string>
   <key>CFBundleIdentifier</key>
-  <string>local.oo-bridge.widget</string>
+  <string>local.codex-discord-bridge.widget</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
-  <string>歐歐橋接小工具</string>
+  <string>Codex Discord Bridge Widget</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>

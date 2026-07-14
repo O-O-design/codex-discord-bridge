@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="/Users/mumu/Documents/Codex/oo-bridge"
-APP="$ROOT/dist/歐歐橋接小工具.app"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+APP="$ROOT/dist/Codex Discord Bridge Widget.app"
 CONTENTS="$APP/Contents"
 MACOS="$CONTENTS/MacOS"
 

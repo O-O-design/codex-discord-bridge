@@ -125,7 +125,7 @@ function htmlPage({ widget = false } = {}) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${widget ? "歐歐橋接小工具" : "歐歐橋接監控"}</title>
+  <title>${widget ? "Codex Discord Bridge Widget" : "Codex Discord Bridge Monitor"}</title>
   <style>
     :root {
       color-scheme: light;
@@ -784,7 +784,7 @@ function htmlPage({ widget = false } = {}) {
 
     <header>
       <div>
-        <h1>${widget ? "歐歐橋接小工具" : "歐歐橋接監控"}</h1>
+        <h1>${widget ? "Codex Discord Bridge Widget" : "Codex Discord Bridge Monitor"}</h1>
         <div class="sub">${logFile}</div>
       </div>
       <div id="connection" class="pill">連線中</div>
@@ -856,6 +856,7 @@ function htmlPage({ widget = false } = {}) {
       codex_queued: 'Codex 已排隊',
       codex_start: 'Codex 開始處理',
       codex_cli_start: '呼叫 Codex CLI',
+      codex_cli_output: 'Codex CLI 輸出',
       codex_success: 'Codex 完成',
       codex_failed: 'Codex 失敗',
       discord_client_error: 'Discord 連線錯誤',
@@ -1108,6 +1109,8 @@ function htmlPage({ widget = false } = {}) {
           return '可選上下文讀取失敗：' + (entry.error || entry.summary || '未知錯誤');
         case 'codex_cli_start':
           return '正在呼叫 Codex CLI：' + (entry.jobId || '未知任務') + '。';
+        case 'codex_cli_output':
+          return 'Codex CLI 有新的執行輸出。';
         case 'codex_success':
           return 'Codex 任務完成：' + (entry.jobId || '未知任務') + '，回覆 ' +
             (entry.responseLength || 0) + ' 字，耗時 ' + formatHumanDuration(entry.durationMs) + '。';
@@ -1153,8 +1156,10 @@ function htmlPage({ widget = false } = {}) {
     function currentWidgetStage() {
       if (state.activeJobId) {
         const activeJob = jobs.get(state.activeJobId);
+        const title = state.workStep === 'codex' ? state.workStage : null;
+
         return {
-          title: activeJob?.status === 'running' ? 'Codex 處理中' : '任務處理中',
+          title: title || (activeJob?.status === 'running' ? 'Codex 處理中' : '任務處理中'),
           sub: '正在產生 Discord 回覆',
           tone: 'warn'
         };
@@ -1403,6 +1408,10 @@ function htmlPage({ widget = false } = {}) {
       if (entry.event === 'codex_cli_start') {
         upsertMessagesFromEntry(entry, 'codex');
         setWork('codex', '交給 Codex CLI', formatEntrySummary(entry), entryDetail(entry), 'warn');
+      }
+
+      if (entry.event === 'codex_cli_output') {
+        setWork('codex', 'Codex 有新的執行輸出', formatEntrySummary(entry), entryDetail(entry), 'warn');
       }
 
       if ((entry.event === 'codex_success' || entry.event === 'codex_failed') && entry.jobId) {

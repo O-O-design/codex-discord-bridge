@@ -34,8 +34,8 @@ const botLoopState = new Map();
 function cleanMessageText(message) {
   return (
     message.content
-      ?.replaceAll(`<@${client.user.id}>`, "@OO")
-      .replaceAll(`<@!${client.user.id}>`, "@OO")
+      ?.replaceAll(`<@${client.user.id}>`, "@bot")
+      .replaceAll(`<@!${client.user.id}>`, "@bot")
       .trim() || "[message content unavailable]"
   );
 }
@@ -235,13 +235,13 @@ function checkBotLoopGuard(message) {
 }
 
 client.once(Events.ClientReady, async (readyClient) => {
-  console.log(`[oo-bridge] logged in as ${readyClient.user.tag}`);
-  console.log(`[oo-bridge] allowed guilds: ${config.guildIds.join(", ")}`);
-  console.log(`[oo-bridge] allowed channels: ${config.channelIds.join(", ") || "(none)"}`);
-  console.log(`[oo-bridge] allowed parent channels: ${config.parentChannelIds.join(", ") || "(none)"}`);
-  console.log(`[oo-bridge] allowed threads: ${config.threadIds.join(", ") || "(none)"}`);
-  console.log(`[oo-bridge] blocked channels: ${config.blockedChannelIds.join(", ") || "(none)"}`);
-  console.log(`[oo-bridge] blocked parent channels: ${config.blockedParentChannelIds.join(", ") || "(none)"}`);
+  console.log(`[codex-discord-bridge] logged in as ${readyClient.user.tag}`);
+  console.log(`[codex-discord-bridge] allowed guilds: ${config.guildIds.join(", ")}`);
+  console.log(`[codex-discord-bridge] allowed channels: ${config.channelIds.join(", ") || "(none)"}`);
+  console.log(`[codex-discord-bridge] allowed parent channels: ${config.parentChannelIds.join(", ") || "(none)"}`);
+  console.log(`[codex-discord-bridge] allowed threads: ${config.threadIds.join(", ") || "(none)"}`);
+  console.log(`[codex-discord-bridge] blocked channels: ${config.blockedChannelIds.join(", ") || "(none)"}`);
+  console.log(`[codex-discord-bridge] blocked parent channels: ${config.blockedParentChannelIds.join(", ") || "(none)"}`);
   await appendRuntimeLog("bridge_ready", {
     summary: `已登入 Discord：${readyClient.user.tag}`,
     botUserId: readyClient.user.id,
@@ -432,6 +432,7 @@ function enqueueCodexBatch(message, batch) {
 
       try {
         let recentContext = "";
+        let codexOutputEventCount = 0;
         if (config.discordContextLimit > 0) {
           await appendRuntimeLog("context_read_start", {
             summary: `讀取可選上下文：${jobId}，最多 ${config.discordContextLimit} 則`,
@@ -480,7 +481,24 @@ function enqueueCodexBatch(message, batch) {
           sandbox
         },
         {
-          sandbox
+          sandbox,
+          onOutput: ({ source, chunk }) => {
+            codexOutputEventCount += 1;
+
+            appendRuntimeLog("codex_cli_output", {
+              summary: `Codex CLI 有新的 ${source} 輸出`,
+              jobId,
+              guild: first.guild,
+              channel: first.channel,
+              channelId: message.channelId,
+              sandbox,
+              source,
+              outputEventCount: codexOutputEventCount,
+              output: limitText(chunk, 400),
+              queuedJobCount,
+              activeJobId
+            }).catch(() => {});
+          }
         });
 
         await sendMessageChunks(message.channel, response);

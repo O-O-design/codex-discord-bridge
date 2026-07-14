@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="/Users/mumu/Documents/Codex/oo-bridge"
+ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 
-echo "啟動 oo-bridge..."
+echo "Starting Codex Discord Bridge..."
 scripts/start-tmux.sh
 
-echo "啟動 monitor..."
+echo "Starting monitor..."
 scripts/start-monitor-tmux.sh
 
-APP="$ROOT/dist/歐歐橋接小工具.app"
+APP="$ROOT/dist/Codex Discord Bridge Widget.app"
 APP_BIN="$APP/Contents/MacOS/OOBridgeWidget"
 
-echo "開啟桌面小工具..."
+echo "Opening desktop widget..."
 if [[ ! -x "$APP_BIN" || desktop/macos/OOBridgeWidget.swift -nt "$APP_BIN" ]]; then
   scripts/build-mac-widget.sh
 fi
@@ -21,5 +21,5 @@ fi
 /usr/bin/open "$APP"
 
 echo
-echo "已啟動桌面小工具。若視窗沒有出現，請看 /tmp/oo-bridge-desktop.err。"
+echo "Desktop widget launched."
 sleep 5
