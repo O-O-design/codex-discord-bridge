@@ -51,6 +51,11 @@ npm start
 
 ## tmux 背景啟動
 
+不熟終端機時，可以直接雙擊根目錄裡的：
+
+- `開啟歐歐橋接.command`：啟動 Discord bridge、啟動 monitor，並打開監控頁。
+- `停止歐歐橋接.command`：停止 monitor 和 Discord bridge。
+
 ```sh
 scripts/start-tmux.sh
 tmux attach -t oo-bridge
