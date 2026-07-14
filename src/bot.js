@@ -2,8 +2,10 @@ import { Client, Events, GatewayIntentBits } from "discord.js";
 import { askCodex } from "./codex.js";
 import { getConfig } from "./config.js";
 import { loadMemberRoster } from "./members.js";
+import { appendRuntimeLog, initRuntimeLog, limitText } from "./runtime-log.js";
 
 const config = getConfig();
+await initRuntimeLog(config);
 const memberRoster = await loadMemberRoster(config.memberRosterFile);
 
 const client = new Client({
@@ -107,9 +109,23 @@ async function getRecentContext(channel) {
         })
     );
 
-    return contextLines.join("\n");
+    const context = contextLines.join("\n");
+    await appendRuntimeLog("context_read", {
+      summary: `read ${contextLines.length} recent messages from ${channel.name ?? channel.id}`,
+      channelId: channel.id,
+      channel: channel.name ?? null,
+      count: contextLines.length
+    });
+
+    return context;
   } catch (error) {
     console.warn(`[discord] failed to fetch recent context: ${error.message}`);
+    await appendRuntimeLog("context_read_failed", {
+      summary: `failed to read recent context: ${error.message}`,
+      channelId: channel.id,
+      channel: channel.name ?? null,
+      error: error.message
+    });
     return "";
   }
 }
@@ -140,6 +156,15 @@ client.once(Events.ClientReady, async (readyClient) => {
   console.log(`[oo-bridge] allowed channels: ${config.channelIds.join(", ") || "(none)"}`);
   console.log(`[oo-bridge] allowed parent channels: ${config.parentChannelIds.join(", ") || "(none)"}`);
   console.log(`[oo-bridge] allowed threads: ${config.threadIds.join(", ") || "(none)"}`);
+  await appendRuntimeLog("bridge_ready", {
+    summary: `logged in as ${readyClient.user.tag}`,
+    botUserId: readyClient.user.id,
+    botTag: readyClient.user.tag,
+    allowedGuildIds: config.guildIds,
+    allowedChannelIds: config.channelIds,
+    allowedParentChannelIds: config.parentChannelIds,
+    allowedThreadIds: config.threadIds
+  });
 });
 
 client.on(Events.MessageCreate, async (message) => {
@@ -158,6 +183,20 @@ client.on(Events.MessageCreate, async (message) => {
   const content = cleanMessageText(message);
   const replyContext = await describeReply(message);
   console.log(`[discord] accepted ${message.author.tag}: ${content}`);
+  await appendRuntimeLog("message_accepted", {
+    summary: `${message.author.tag} in ${channelLabel(message)}: ${limitText(content)}`,
+    messageId: message.id,
+    guildId: message.guildId,
+    guild: message.guild?.name ?? null,
+    channelId: message.channelId,
+    channel: channelLabel(message),
+    parentChannelId: message.channel?.parentId ?? null,
+    author: message.author.tag,
+    authorId: message.author.id,
+    authorIsBot: message.author.bot,
+    content: limitText(content),
+    replyContext: limitText(replyContext)
+  });
 
   const batchKey = `${message.guildId}:${message.channelId}`;
   const batch = pendingBatches.get(batchKey) ?? {
@@ -211,6 +250,18 @@ function enqueueCodexBatch(message, batch) {
   codexQueue = codexQueue
     .then(async () => {
       await message.channel.sendTyping();
+      await appendRuntimeLog("codex_start", {
+        summary: `calling Codex for ${batch.length} message(s) in ${first.channel} with ${sandbox}`,
+        guild: first.guild,
+        channel: first.channel,
+        channelId: message.channelId,
+        batchSize: batch.length,
+        sandbox,
+        authors: batch.map((item) => ({
+          author: item.author,
+          authorId: item.authorId
+        }))
+      });
       const typing = setInterval(() => {
         message.channel.sendTyping().catch(() => {});
       }, 8_000);
@@ -232,11 +283,30 @@ function enqueueCodexBatch(message, batch) {
 
         await sendMessageChunks(message.channel, response);
         console.log("[codex] replied through Discord.");
+        await appendRuntimeLog("codex_success", {
+          summary: `replied in ${first.channel}; ${response.length} chars`,
+          guild: first.guild,
+          channel: first.channel,
+          channelId: message.channelId,
+          sandbox,
+          responseLength: response.length,
+          response: limitText(response)
+        });
       } catch (error) {
         console.error("[codex] failed:", error.message);
         if (error.stderr) {
           console.error(error.stderr);
         }
+        await appendRuntimeLog("codex_failed", {
+          summary: `Codex failed in ${first.channel}: ${error.message}`,
+          guild: first.guild,
+          channel: first.channel,
+          channelId: message.channelId,
+          sandbox,
+          error: error.message,
+          stderr: limitText(error.stderr),
+          stdout: limitText(error.stdout)
+        });
         await message.channel.send("我這邊叫 Codex CLI 的時候卡住了，先把這回合放掉，下一句可以繼續。");
       } finally {
         clearInterval(typing);
@@ -249,10 +319,18 @@ function enqueueCodexBatch(message, batch) {
 
 client.on(Events.Error, (error) => {
   console.error("[discord] client error:", error);
+  appendRuntimeLog("discord_client_error", {
+    summary: `Discord client error: ${error.message}`,
+    error: error.message
+  }).catch(() => {});
 });
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
-  process.on(signal, () => {
+  process.on(signal, async () => {
+    await appendRuntimeLog("bridge_shutdown", {
+      summary: `received ${signal}`,
+      signal
+    });
     client.destroy();
     process.exit(0);
   });

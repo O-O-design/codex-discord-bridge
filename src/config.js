@@ -68,6 +68,8 @@ export function getConfig({ requireDiscord = true } = {}) {
     codexTimeoutMs: intEnv("CODEX_TIMEOUT_MS", 90_000),
     discordBatchWindowMs: intEnv("DISCORD_BATCH_WINDOW_MS", 1_500),
     discordContextLimit: intEnv("DISCORD_CONTEXT_LIMIT", 10),
+    bridgeLogFile: process.env.BRIDGE_LOG_FILE?.trim() || "logs/bridge.ndjson",
+    bridgeLogMessageLimit: intEnv("BRIDGE_LOG_MESSAGE_LIMIT", 800),
     memberRosterFile: memberRosterFile ? resolve(process.cwd(), memberRosterFile) : null,
     allowedBotAuthorIds: listEnv("DISCORD_ALLOWED_BOT_AUTHOR_IDS"),
     writeUserIds: listEnv("DISCORD_WRITE_USER_IDS")

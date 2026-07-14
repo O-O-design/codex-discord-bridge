@@ -53,6 +53,8 @@ npm run check
 - `DISCORD_BATCH_WINDOW_MS`：連續訊息合併視窗，預設 `1500`。
 - `CODEX_TIMEOUT_MS`：單次 Codex CLI 最長等待時間，預設 `90000`。
 - `DISCORD_CONTEXT_LIMIT`：每次回覆前讀取的最近頻道訊息數，預設 `10`。
+- `BRIDGE_LOG_FILE`：本機 runtime log 檔，預設 `logs/bridge.ndjson`，不發到 Discord、不進 git。
+- `BRIDGE_LOG_MESSAGE_LIMIT`：每筆 log 裡訊息與回覆摘要的最大字數，預設 `800`。
 - `MEMBER_ROSTER_FILE`：私有成員清單 CSV 路徑，不進 git。
 - `DISCORD_GUILD_IDS`：允許反應的伺服器 ID，以逗號分隔。
 - `DISCORD_CHANNEL_IDS`：允許反應的一般頻道 ID，以逗號分隔。
@@ -63,6 +65,8 @@ npm run check
 - `CODEX_SANDBOX`：Codex CLI sandbox，預設 `workspace-write`，讓 Discord 端呼叫的 Codex 可以改這個工作區；只接受 `read-only`、`workspace-write`、`danger-full-access`。
 
 如果 Codex CLI 單回合卡住，bridge 會殺掉該回合並回報卡住，避免整條 Discord queue 死鎖。
+
+Runtime log 會記錄實際後台事件：bridge 啟動、收到允許位置的訊息、讀取最近上下文、呼叫 Codex、回覆成功或錯誤。它是本機排錯與查看狀態用，不是 Discord 旁白，也不顯示模型私密推理。
 
 讀取最近訊息需要 bot 在目標頻道具備讀取訊息歷史與訊息內容權限；如果抓取失敗，bridge 會降級成只回覆當前批次。
 
