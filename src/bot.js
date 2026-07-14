@@ -13,6 +13,8 @@ const client = new Client({
 });
 
 let codexQueue = Promise.resolve();
+let batchTimer = null;
+let pendingMessages = [];
 
 function cleanMessageText(message) {
   return (
@@ -72,6 +74,37 @@ client.on(Events.MessageCreate, async (message) => {
   const content = cleanMessageText(message);
   console.log(`[discord] accepted ${message.author.tag}: ${content}`);
 
+  pendingMessages.push({
+    author: message.author.tag,
+    channel: message.channel?.name ?? message.channelId,
+    guild: message.guild?.name ?? message.guildId,
+    content
+  });
+
+  if (batchTimer) {
+    clearTimeout(batchTimer);
+  }
+
+  batchTimer = setTimeout(() => {
+    const batch = pendingMessages;
+    pendingMessages = [];
+    batchTimer = null;
+
+    enqueueCodexBatch(message, batch);
+  }, config.discordBatchWindowMs);
+});
+
+function enqueueCodexBatch(message, batch) {
+  const first = batch[0];
+  const content =
+    batch.length === 1
+      ? first.content
+      : [
+          "以下是同一個 Discord 頻道內短時間連續訊息，請整體理解後自然回覆，不要逐句機械拆答：",
+          "",
+          ...batch.map((item) => `${item.author}: ${item.content}`)
+        ].join("\n");
+
   codexQueue = codexQueue
     .then(async () => {
       await message.channel.sendTyping();
@@ -82,8 +115,8 @@ client.on(Events.MessageCreate, async (message) => {
       try {
         const response = await askCodex(config, {
           author: message.author.tag,
-          channel: message.channel?.name ?? message.channelId,
-          guild: message.guild?.name ?? message.guildId,
+          channel: first.channel,
+          guild: first.guild,
           content
         });
 
@@ -94,7 +127,7 @@ client.on(Events.MessageCreate, async (message) => {
         if (error.stderr) {
           console.error(error.stderr);
         }
-        await message.channel.send("我這邊叫 Codex CLI 的時候失敗了，先卡一下。");
+        await message.channel.send("我這邊叫 Codex CLI 的時候卡住了，先把這回合放掉，下一句可以繼續。");
       } finally {
         clearInterval(typing);
       }
@@ -102,7 +135,7 @@ client.on(Events.MessageCreate, async (message) => {
     .catch((error) => {
       console.error("[codex] queue failed:", error);
     });
-});
+}
 
 client.on(Events.Error, (error) => {
   console.error("[discord] client error:", error);

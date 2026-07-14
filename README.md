@@ -46,3 +46,9 @@ npm start
 npm run check
 ```
 
+## 對話節流
+
+- `DISCORD_BATCH_WINDOW_MS`：連續訊息合併視窗，預設 `1500`。
+- `CODEX_TIMEOUT_MS`：單次 Codex CLI 最長等待時間，預設 `90000`。
+
+如果 Codex CLI 單回合卡住，bridge 會殺掉該回合並回報卡住，避免整條 Discord queue 死鎖。

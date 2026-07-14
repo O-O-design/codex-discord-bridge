@@ -17,7 +17,7 @@ async function readSessionId(sessionFile) {
   }
 }
 
-function runProcess(command, args, { cwd }) {
+function runProcess(command, args, { cwd, timeoutMs }) {
   return new Promise((resolveProcess, rejectProcess) => {
     const child = spawn(command, args, {
       cwd,
@@ -27,6 +27,18 @@ function runProcess(command, args, { cwd }) {
 
     let stdout = "";
     let stderr = "";
+    let timedOut = false;
+
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGTERM");
+
+      setTimeout(() => {
+        if (!child.killed) {
+          child.kill("SIGKILL");
+        }
+      }, 3_000).unref();
+    }, timeoutMs);
 
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
@@ -39,8 +51,22 @@ function runProcess(command, args, { cwd }) {
       stderr += chunk;
     });
 
-    child.on("error", rejectProcess);
+    child.on("error", (error) => {
+      clearTimeout(timeout);
+      rejectProcess(error);
+    });
+
     child.on("close", (code) => {
+      clearTimeout(timeout);
+
+      if (timedOut) {
+        const error = new Error(`Codex CLI timed out after ${timeoutMs}ms`);
+        error.stdout = stdout;
+        error.stderr = stderr;
+        rejectProcess(error);
+        return;
+      }
+
       if (code === 0) {
         resolveProcess({ stdout, stderr });
         return;
@@ -84,7 +110,10 @@ export async function seedCodexSession(config, seedPrompt) {
   ];
 
   try {
-    const result = await runProcess(config.codexCliPath, args, { cwd: process.cwd() });
+    const result = await runProcess(config.codexCliPath, args, {
+      cwd: process.cwd(),
+      timeoutMs: config.codexTimeoutMs
+    });
     const match = `${result.stdout}\n${result.stderr}`.match(SESSION_ID_PATTERN);
 
     if (!match) {
@@ -119,10 +148,12 @@ export async function askCodex(config, messageContext) {
   ];
 
   try {
-    await runProcess(config.codexCliPath, args, { cwd: process.cwd() });
+    await runProcess(config.codexCliPath, args, {
+      cwd: process.cwd(),
+      timeoutMs: config.codexTimeoutMs
+    });
     return (await readFile(outputFile, "utf8")).trim() || "我有收到，但 Codex 沒吐出文字回覆。";
   } finally {
     await rm(outputDir, { recursive: true, force: true });
   }
 }
-
