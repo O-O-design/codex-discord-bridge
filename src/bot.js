@@ -17,6 +17,7 @@ const client = new Client({
 let codexQueue = Promise.resolve();
 let batchTimer = null;
 let pendingMessages = [];
+let monitorChannel = null;
 
 function cleanMessageText(message) {
   return (
@@ -53,6 +54,30 @@ function splitDiscordMessage(content) {
 async function sendMessageChunks(channel, content) {
   for (const chunk of splitDiscordMessage(content)) {
     await channel.send(chunk);
+  }
+}
+
+function shortText(text, limit = 120) {
+  const clean = text.replace(/\s+/g, " ").trim();
+
+  return clean.length > limit ? `${clean.slice(0, limit)}...` : clean;
+}
+
+async function sendMonitor(content) {
+  if (!config.monitorEnabled) {
+    return;
+  }
+
+  try {
+    if (!monitorChannel) {
+      monitorChannel = await client.channels.fetch(config.monitorChannelId ?? config.channelId);
+    }
+
+    if (monitorChannel?.isTextBased()) {
+      await monitorChannel.send(`🟣 ${content}`);
+    }
+  } catch (error) {
+    console.warn(`[monitor] failed to send status: ${error.message}`);
   }
 }
 
@@ -115,6 +140,7 @@ client.once(Events.ClientReady, async (readyClient) => {
 
   const channel = await client.channels.fetch(config.channelId);
   console.log(`[oo-bridge] target channel: #${channel?.name ?? config.channelId}`);
+  await sendMonitor(`bridge online：${readyClient.user.tag}，鎖定 #${channel?.name ?? config.channelId}`);
 });
 
 client.on(Events.MessageCreate, async (message) => {
@@ -129,6 +155,7 @@ client.on(Events.MessageCreate, async (message) => {
   const content = cleanMessageText(message);
   const replyContext = await describeReply(message);
   console.log(`[discord] accepted ${message.author.tag}: ${content}`);
+  await sendMonitor(`收到 ${message.author.tag}：${shortText(content)}`);
 
   pendingMessages.push({
     author: message.author.tag,
@@ -168,12 +195,14 @@ function enqueueCodexBatch(message, batch) {
   codexQueue = codexQueue
     .then(async () => {
       await message.channel.sendTyping();
+      await sendMonitor(`合併 ${batch.length} 則訊息，準備讀取最近 ${config.discordContextLimit} 則上下文`);
       const typing = setInterval(() => {
         message.channel.sendTyping().catch(() => {});
       }, 8_000);
 
       try {
         const recentContext = await getRecentContext(message.channel);
+        await sendMonitor("上下文已讀，呼叫 Codex CLI");
         const response = await askCodex(config, {
           author: message.author.tag,
           authorProfile: first.authorProfile,
@@ -185,11 +214,13 @@ function enqueueCodexBatch(message, batch) {
 
         await sendMessageChunks(message.channel, response);
         console.log("[codex] replied through Discord.");
+        await sendMonitor("Codex 已回覆 Discord");
       } catch (error) {
         console.error("[codex] failed:", error.message);
         if (error.stderr) {
           console.error(error.stderr);
         }
+        await sendMonitor(`Codex 回合失敗：${shortText(error.message)}`);
         await message.channel.send("我這邊叫 Codex CLI 的時候卡住了，先把這回合放掉，下一句可以繼續。");
       } finally {
         clearInterval(typing);

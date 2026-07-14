@@ -27,9 +27,28 @@ function intEnv(name, fallback) {
   return parsed;
 }
 
+function boolEnv(name, fallback) {
+  const value = process.env[name]?.trim().toLowerCase();
+
+  if (!value) {
+    return fallback;
+  }
+
+  if (["1", "true", "yes", "on"].includes(value)) {
+    return true;
+  }
+
+  if (["0", "false", "no", "off"].includes(value)) {
+    return false;
+  }
+
+  throw new Error(`Environment variable ${name} must be boolean-like.`);
+}
+
 export function getConfig({ requireDiscord = true } = {}) {
   const codexSessionFile = process.env.CODEX_SESSION_FILE?.trim() || "state/codex-session";
   const memberRosterFile = process.env.MEMBER_ROSTER_FILE?.trim();
+  const monitorChannelId = process.env.DISCORD_MONITOR_CHANNEL_ID?.trim();
 
   const config = {
     discordToken: process.env.DISCORD_TOKEN?.trim(),
@@ -43,7 +62,9 @@ export function getConfig({ requireDiscord = true } = {}) {
     codexTimeoutMs: intEnv("CODEX_TIMEOUT_MS", 90_000),
     discordBatchWindowMs: intEnv("DISCORD_BATCH_WINDOW_MS", 1_500),
     discordContextLimit: intEnv("DISCORD_CONTEXT_LIMIT", 10),
-    memberRosterFile: memberRosterFile ? resolve(process.cwd(), memberRosterFile) : null
+    memberRosterFile: memberRosterFile ? resolve(process.cwd(), memberRosterFile) : null,
+    monitorEnabled: boolEnv("DISCORD_MONITOR_ENABLED", false),
+    monitorChannelId: monitorChannelId || null
   };
 
   if (requireDiscord) {

@@ -52,11 +52,15 @@ npm run check
 - `CODEX_TIMEOUT_MS`：單次 Codex CLI 最長等待時間，預設 `90000`。
 - `DISCORD_CONTEXT_LIMIT`：每次回覆前讀取的最近頻道訊息數，預設 `10`。
 - `MEMBER_ROSTER_FILE`：私有成員清單 CSV 路徑，不進 git。
+- `DISCORD_MONITOR_ENABLED`：是否送出輕量 monitor 訊息，預設 `false`。
+- `DISCORD_MONITOR_CHANNEL_ID`：monitor 訊息送往的頻道；空白時送到目標對話頻道。
 
 如果 Codex CLI 單回合卡住，bridge 會殺掉該回合並回報卡住，避免整條 Discord queue 死鎖。
 
 讀取最近訊息需要 bot 在目標頻道具備讀取訊息歷史與訊息內容權限；如果抓取失敗，bridge 會降級成只回覆當前批次。
 
 如果使用者用 Discord 的「引用回覆」，bridge 會嘗試抓取被引用訊息，並在 prompt 裡補上 `↩ 這則是在「引用回覆」...`。抓不到時會安靜略過。
+
+Monitor 只顯示 bridge 狀態，不顯示 Codex 私密推理：收到訊息、合併批次、讀取上下文、呼叫 Codex、回覆成功、timeout/error。
 
 成員清單支援欄位：`所屬群組, ID, 名稱, 性別, 伴侶, 底層邏輯, 備註`。bridge 會用 Discord author id 對應身份，將摘要放進 Codex prompt；原始 CSV 應保持私有。
