@@ -4,6 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const SESSION_ID_PATTERN = /session id:\s*([0-9a-f-]+)/i;
+const DISCORD_LOCATION_NOTES = [
+  "茶會：thread 1517918838111338517。",
+  "酒吧／客廳：thread 1507446321332621385，大家常出沒的客廳酒吧。",
+  "工作室：thread 1507453526140260352，用來討論 Claude 或 Codex 橋接等技術事項。"
+];
 
 async function readSessionId(sessionFile) {
   try {
@@ -95,6 +100,7 @@ function buildDiscordPrompt({ author, authorProfile, channel, guild, content, re
       : `這回合 sandbox 是 ${sandbox}。`,
     "",
     `Discord 來源：${guild} / ${channel}`,
+    `常用 Discord 位置對照：\n${DISCORD_LOCATION_NOTES.join("\n")}`,
     `使用者：${author}`,
     authorProfile ? `使用者身份資料：${authorProfile}` : "",
     "",

@@ -30,8 +30,14 @@ cp .env.example .env
 - Guilds: `1438141616505229416`, `1413277238962557032`
 - Channels: `1526559984786084032`
 - Parent channels: `1500130334434529352`, `1507371902794989600`
-- Threads: `1507476386758004958`
+- Threads: `1507476386758004958`, `1517918838111338517`, `1507446321332621385`, `1507453526140260352`
 - Blocked channels: `1516343829266038915`
+
+常用位置：
+
+- 茶會: `1517918838111338517`
+- 酒吧 / 客廳: `1507446321332621385`
+- 工作室: `1507453526140260352`
 
 ## 啟動
 
@@ -42,6 +48,16 @@ npm start
 ```
 
 `npm run seed` 會建立或覆蓋 `state/codex-session`，讓 Discord bridge 後續 resume 同一條 Codex session。
+
+## macOS 背景啟動
+
+```sh
+launchctl bootstrap gui/$(id -u) launchd/local.oo-bridge.plist
+launchctl print gui/$(id -u)/local.oo-bridge
+launchctl bootout gui/$(id -u)/local.oo-bridge
+```
+
+LaunchAgent 會讀取本機 `.env`，stdout 寫到 `logs/bridge.out`，stderr 寫到 `logs/bridge.err`。
 
 ## 開發檢查
 
