@@ -55,6 +55,7 @@ npm start
 
 - `開啟歐歐橋接.command`：啟動 Discord bridge、啟動 monitor，並打開監控頁。
 - `開啟歐歐監控小工具.command`：啟動 monitor，並打開手機寬度的長條小工具視圖。
+- `開啟歐歐桌面小工具.command`：啟動 bridge / monitor，並開啟半透明桌面小工具 App。
 - `停止歐歐橋接.command`：停止 monitor 和 Discord bridge。
 
 ```sh
@@ -82,6 +83,14 @@ npm run monitor
 預設網址是 `http://127.0.0.1:3899`。它會讀取 `BRIDGE_LOG_FILE`，即時列出每句 Discord 訊息的私下狀態、bridge 事件、Codex job、queue 數、預估完成時間、執行時間與錯誤狀態。這不是 Codex 原生即時思考視窗，而是 bridge 的後台工作狀態視窗。
 
 小工具視圖是 `http://127.0.0.1:3899/widget`，適合用手機寬度的長條視窗放在桌面旁邊看背景動態。這仍是本機網頁，正式桌面 APP 可以之後用同一個視圖包裝。
+
+macOS 桌面小工具使用原生 Swift / WebKit 包裝：
+
+```sh
+npm run desktop:mac
+```
+
+目前是開發版桌面窗，不是正式安裝包；它載入同一個 `/widget`，所以顯示的是實際 bridge runtime log，不是另外生成的假狀態。Windows 版之後可以用 Electron 或 Tauri 另外包同一個小工具視圖。
 
 也可以用 tmux 常駐：
 

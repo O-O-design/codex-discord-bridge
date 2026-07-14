@@ -450,14 +450,16 @@ function htmlPage({ widget = false } = {}) {
     body.widget {
       min-height: 100vh;
       background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.42)),
-        linear-gradient(180deg, rgba(47, 103, 216, 0.12), rgba(245, 247, 250, 0.24));
+        radial-gradient(circle at 24% 4%, rgba(54, 108, 255, 0.22), transparent 34%),
+        radial-gradient(circle at 82% 10%, rgba(16, 185, 129, 0.16), transparent 30%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.3));
       backdrop-filter: blur(16px);
+      -webkit-app-region: drag;
     }
 
     body.widget main {
-      width: min(390px, calc(100vw - 20px));
-      padding: 10px 0 14px;
+      width: min(360px, calc(100vw - 20px));
+      padding: 12px 0 14px;
     }
 
     body.widget header {
@@ -489,14 +491,18 @@ function htmlPage({ widget = false } = {}) {
     }
 
     body.widget .grid {
-      margin-bottom: 8px;
+      margin-bottom: 10px;
     }
 
     body.widget .card {
-      min-height: 68px;
+      min-height: 64px;
       padding: 10px 12px;
-      background: rgba(255, 255, 255, 0.76);
+      border-color: rgba(255, 255, 255, 0.52);
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.68);
       backdrop-filter: blur(12px);
+      box-shadow: 0 18px 36px rgba(35, 45, 70, 0.16);
+      -webkit-app-region: no-drag;
     }
 
     body.widget .value {
@@ -508,12 +514,16 @@ function htmlPage({ widget = false } = {}) {
     }
 
     body.widget .panel {
-      background: rgba(255, 255, 255, 0.72);
+      border-color: rgba(255, 255, 255, 0.54);
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.64);
       backdrop-filter: blur(12px);
+      box-shadow: 0 18px 36px rgba(35, 45, 70, 0.16);
+      -webkit-app-region: no-drag;
     }
 
     body.widget .focus {
-      margin-bottom: 8px;
+      display: none;
     }
 
     body.widget .focus-body {
@@ -540,13 +550,20 @@ function htmlPage({ widget = false } = {}) {
       font-size: 11px;
     }
 
-    body.widget .messages-list,
+    body.widget .message-panel {
+      display: none;
+    }
+
     body.widget .list {
       max-height: none;
       min-height: 0;
     }
 
     body.widget .layout .panel:first-child {
+      display: block;
+    }
+
+    body.widget .layout .panel:last-child {
       display: none;
     }
 
