@@ -58,7 +58,7 @@ npm run check
 - `DISCORD_CHANNEL_IDS`：允許反應的一般頻道 ID，以逗號分隔。
 - `DISCORD_PARENT_CHANNEL_IDS`：允許其底下 thread/post 反應的 parent channel 或 forum ID，以逗號分隔。
 - `DISCORD_THREAD_IDS`：允許反應的 thread ID，以逗號分隔。
-- `DISCORD_ALLOWED_BOT_AUTHOR_IDS`：允許讀取的其他 bot 作者 ID，以逗號分隔；bridge 永遠不讀自己的訊息，避免自我回音。
+- `DISCORD_ALLOWED_BOT_AUTHOR_IDS`：允許讀取的其他 bot 作者 ID，以逗號分隔；目前包含歐德 `1484555705720766585`。bridge 永遠不讀自己的訊息，避免自我回音。
 - `DISCORD_WRITE_USER_IDS`：允許使用 `CODEX_SANDBOX` 寫入權限的 Discord user ID，以逗號分隔；不在清單內的發言一律用 `read-only` 呼叫 Codex。
 - `CODEX_SANDBOX`：Codex CLI sandbox，預設 `workspace-write`，讓 Discord 端呼叫的 Codex 可以改這個工作區；只接受 `read-only`、`workspace-write`、`danger-full-access`。
 
