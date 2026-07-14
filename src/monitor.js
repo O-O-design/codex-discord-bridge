@@ -218,7 +218,8 @@ function htmlPage({ widget = false } = {}) {
       box-shadow: var(--shadow);
     }
 
-    .widget-only {
+    .widget-only,
+    .widget-shell {
       display: none;
     }
 
@@ -447,141 +448,302 @@ function htmlPage({ widget = false } = {}) {
       }
     }
 
+    html {
+      min-height: 100%;
+    }
+
     body.widget {
-      min-height: 100vh;
+      height: 100vh;
+      max-height: 100vh;
+      overflow: hidden;
       background:
-        radial-gradient(circle at 24% 4%, rgba(54, 108, 255, 0.22), transparent 34%),
-        radial-gradient(circle at 82% 10%, rgba(16, 185, 129, 0.16), transparent 30%),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.3));
-      backdrop-filter: blur(16px);
+        linear-gradient(180deg, rgba(250, 250, 251, 0.94), rgba(244, 244, 247, 0.86)),
+        rgba(255, 255, 255, 0.64);
+      backdrop-filter: blur(18px);
       -webkit-app-region: drag;
     }
 
     body.widget main {
-      width: min(360px, calc(100vw - 20px));
-      padding: 12px 0 14px;
+      width: min(350px, calc(100vw - 22px));
+      height: 100vh;
+      padding: 40px 0 12px;
+      overflow: hidden;
     }
 
-    body.widget header {
-      margin-bottom: 10px;
-      gap: 8px;
-    }
-
-    body.widget h1 {
-      font-size: 17px;
-    }
-
-    body.widget .sub {
-      display: none;
-    }
-
-    body.widget .pill {
-      min-height: 24px;
-      font-size: 12px;
-    }
-
-    body.widget .widget-only {
-      display: block;
-    }
-
+    body.widget main > header,
+    body.widget .focus,
     body.widget .grid,
+    body.widget .message-panel,
     body.widget .layout {
-      grid-template-columns: 1fr;
-      gap: 8px;
-    }
-
-    body.widget .grid {
-      margin-bottom: 10px;
-    }
-
-    body.widget .card {
-      min-height: 64px;
-      padding: 10px 12px;
-      border-color: rgba(255, 255, 255, 0.52);
-      border-radius: 22px;
-      background: rgba(255, 255, 255, 0.68);
-      backdrop-filter: blur(12px);
-      box-shadow: 0 18px 36px rgba(35, 45, 70, 0.16);
-      -webkit-app-region: no-drag;
-    }
-
-    body.widget .value {
-      font-size: 20px;
-    }
-
-    body.widget .value.small {
-      font-size: 14px;
-    }
-
-    body.widget .panel {
-      border-color: rgba(255, 255, 255, 0.54);
-      border-radius: 24px;
-      background: rgba(255, 255, 255, 0.64);
-      backdrop-filter: blur(12px);
-      box-shadow: 0 18px 36px rgba(35, 45, 70, 0.16);
-      -webkit-app-region: no-drag;
-    }
-
-    body.widget .focus {
       display: none;
     }
 
-    body.widget .focus-body {
-      grid-template-columns: 1fr;
+    body.widget .widget-shell {
+      display: block;
+      max-height: calc(100vh - 52px);
+      overflow: hidden;
+      border: 1px solid rgba(232, 230, 238, 0.94);
+      border-radius: 28px;
+      background: rgba(252, 252, 251, 0.92);
+      box-shadow:
+        0 20px 48px rgba(29, 26, 46, 0.14),
+        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(18px);
+      -webkit-app-region: no-drag;
+    }
+
+    .widget-art {
+      display: none;
+    }
+
+    .widget-body {
+      padding: 20px 18px 18px;
+    }
+
+    .widget-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .widget-brand {
+      display: inline-flex;
+      align-items: center;
       gap: 10px;
+      min-width: 0;
+    }
+
+    .widget-badge {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: #e7ddff;
+      color: #1f1b2d;
+      font-size: 13px;
+      font-weight: 750;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    }
+
+    .widget-kicker {
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .widget-title {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1.15;
+    }
+
+    .widget-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 0 9px;
+      border: 1px solid rgba(218, 214, 229, 0.88);
+      border-radius: 999px;
+      background: rgba(247, 247, 248, 0.92);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .widget-pill.live {
+      border-color: rgba(166, 148, 238, 0.52);
+      background: #e9e1ff;
+      color: #4c3aa6;
+    }
+
+    .widget-pill.reconnecting {
+      border-color: rgba(164, 95, 0, 0.28);
+      background: rgba(255, 247, 237, 0.76);
+      color: var(--warn);
+    }
+
+    .widget-stage {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 12px;
+      align-items: center;
+      margin: 14px 0 14px;
       padding: 12px;
+      border: 1px solid rgba(232, 230, 238, 0.94);
+      border-radius: 16px;
+      background: #f7f7f8;
     }
 
-    body.widget .work-stage {
+    .widget-dot {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: linear-gradient(180deg, #34d399, #12875f);
+      box-shadow: 0 10px 22px rgba(18, 135, 95, 0.28);
+    }
+
+    .widget-stage-title {
+      font-size: 18px;
+      font-weight: 800;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
+
+    .widget-stage-sub {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .widget-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .widget-metric {
+      min-height: 62px;
+      padding: 10px;
+      border: 1px solid rgba(236, 234, 241, 0.94);
+      border-radius: 14px;
+      background: #f4f4f5;
+    }
+
+    .widget-metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .widget-metric strong {
+      display: block;
+      margin-top: 6px;
       font-size: 16px;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
     }
 
-    body.widget .work-summary {
+    .widget-active {
+      padding: 11px 12px;
+      border: 1px solid rgba(232, 230, 238, 0.94);
+      border-radius: 14px;
+      background: #fbfbfb;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+    }
+
+    .widget-active strong {
+      display: block;
+      margin-top: 4px;
+      color: var(--text);
       font-size: 13px;
     }
 
-    body.widget .steps {
-      min-width: 0;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+    .widget-jobs {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
     }
 
-    body.widget .step {
-      min-height: 34px;
-      font-size: 11px;
-    }
-
-    body.widget .message-panel {
-      display: none;
-    }
-
-    body.widget .list {
-      max-height: none;
-      min-height: 0;
-    }
-
-    body.widget .layout .panel:first-child {
-      display: block;
-    }
-
-    body.widget .layout .panel:last-child {
-      display: none;
-    }
-
-    body.widget .item {
+    .widget-job {
       padding: 10px 12px;
+      border: 1px solid rgba(232, 230, 238, 0.94);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.88);
     }
 
-    body.widget .summary {
-      font-size: 12px;
+    .widget-job-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 5px;
     }
 
-    body.widget .meta {
+    .widget-job-status {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: #e9e1ff;
+      color: #4c3aa6;
       font-size: 11px;
+      font-weight: 800;
+    }
+
+    .widget-job-time,
+    .widget-job-meta {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .widget-job-title {
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
     }
   </style>
 </head>
 <body class="${widget ? "widget" : "monitor"}">
   <main>
+    <section class="widget-shell widget-only">
+      <div class="widget-art"></div>
+      <div class="widget-body">
+        <div class="widget-top">
+          <div class="widget-brand">
+            <div class="widget-badge">OO</div>
+            <div class="widget-kicker">OO Bridge</div>
+          </div>
+          <div id="widget-connection" class="widget-pill">連線中</div>
+        </div>
+
+        <div class="widget-title">橋接小工具</div>
+
+        <div class="widget-stage">
+          <div id="widget-dot" class="widget-dot"></div>
+          <div>
+            <div id="widget-stage" class="widget-stage-title">待命中</div>
+            <div id="widget-stage-sub" class="widget-stage-sub">等待 Discord 任務。</div>
+          </div>
+        </div>
+
+        <div class="widget-metrics">
+          <div class="widget-metric">
+            <span>排隊</span>
+            <strong id="widget-queue">0</strong>
+          </div>
+          <div class="widget-metric">
+            <span>預估</span>
+            <strong id="widget-eta">無</strong>
+          </div>
+          <div class="widget-metric">
+            <span>最近</span>
+            <strong id="widget-last">無</strong>
+          </div>
+        </div>
+
+        <div class="widget-active">
+          正在處理
+          <strong id="widget-active">無</strong>
+        </div>
+
+        <div id="widget-jobs" class="widget-jobs"></div>
+      </div>
+    </section>
+
     <header>
       <div>
         <h1>${widget ? "歐歐橋接小工具" : "歐歐橋接監控"}</h1>
@@ -698,6 +860,15 @@ function htmlPage({ widget = false } = {}) {
     const messages = new Map();
 
     const connectionEl = document.getElementById('connection');
+    const widgetConnectionEl = document.getElementById('widget-connection');
+    const widgetDotEl = document.getElementById('widget-dot');
+    const widgetStageEl = document.getElementById('widget-stage');
+    const widgetStageSubEl = document.getElementById('widget-stage-sub');
+    const widgetQueueEl = document.getElementById('widget-queue');
+    const widgetEtaEl = document.getElementById('widget-eta');
+    const widgetLastEl = document.getElementById('widget-last');
+    const widgetActiveEl = document.getElementById('widget-active');
+    const widgetJobsEl = document.getElementById('widget-jobs');
     const workStageEl = document.getElementById('work-stage');
     const workSummaryEl = document.getElementById('work-summary');
     const workDetailEl = document.getElementById('work-detail');
@@ -898,6 +1069,116 @@ function htmlPage({ widget = false } = {}) {
         (job.batchSize || 1) + ' 則訊息。';
     }
 
+    function setOptionalText(element, value) {
+      if (element) {
+        element.textContent = value;
+      }
+    }
+
+    function shortJobId(jobId) {
+      if (!jobId) {
+        return '無';
+      }
+
+      return jobId.length > 18 ? jobId.slice(0, 18) + '...' : jobId;
+    }
+
+    function currentWidgetStage() {
+      if (state.activeJobId) {
+        const activeJob = jobs.get(state.activeJobId);
+        return {
+          title: activeJob?.status === 'running' ? 'Codex 處理中' : '任務處理中',
+          sub: shortJobId(state.activeJobId),
+          tone: 'warn'
+        };
+      }
+
+      if (state.queueCount > 0) {
+        return {
+          title: '排隊等待中',
+          sub: '還有 ' + state.queueCount + ' 件任務',
+          tone: 'warn'
+        };
+      }
+
+      const latestJob = [...jobs.values()]
+        .sort((a, b) => new Date(b.finishedTs || b.startedTs || b.ts || 0).getTime() - new Date(a.finishedTs || a.startedTs || a.ts || 0).getTime())[0];
+
+      if (latestJob?.status === 'failed') {
+        return {
+          title: '最近任務失敗',
+          sub: shortJobId(latestJob.id),
+          tone: 'bad'
+        };
+      }
+
+      if (latestJob?.status === 'done') {
+        return {
+          title: '待命中',
+          sub: '最近完成 ' + formatHumanDuration(latestJob.durationMs),
+          tone: 'ok'
+        };
+      }
+
+      return {
+        title: state.connected ? '待命中' : '重新連線中',
+        sub: state.connected ? '等待 Discord 任務。' : '等待 monitor 重新連線。',
+        tone: state.connected ? 'ok' : 'warn'
+      };
+    }
+
+    function renderWidget() {
+      if (!widgetJobsEl) {
+        return;
+      }
+
+      const stage = currentWidgetStage();
+      setOptionalText(widgetConnectionEl, state.connected ? '即時連線' : '重新連線');
+      if (widgetConnectionEl) {
+        widgetConnectionEl.className = state.connected ? 'widget-pill live' : 'widget-pill reconnecting';
+      }
+      setOptionalText(widgetStageEl, stage.title);
+      setOptionalText(widgetStageSubEl, stage.sub);
+      setOptionalText(widgetQueueEl, String(state.queueCount));
+      setOptionalText(widgetEtaEl, estimateCompletionText().replace('無待處理', '無').replace('累積資料中', '估算中'));
+      setOptionalText(widgetLastEl, state.lastResult.replace('完成：', '').replace('失敗：', '失敗'));
+      setOptionalText(widgetActiveEl, shortJobId(state.activeJobId));
+
+      if (widgetDotEl) {
+        widgetDotEl.style.background = stage.tone === 'bad'
+          ? 'linear-gradient(180deg, #fb7185, #b53542)'
+          : stage.tone === 'warn'
+            ? 'linear-gradient(180deg, #fbbf24, #a45f00)'
+            : 'linear-gradient(180deg, #34d399, #12875f)';
+      }
+
+      const visibleJobs = [...jobs.values()]
+        .sort((a, b) => new Date(b.finishedTs || b.startedTs || b.ts || 0).getTime() - new Date(a.finishedTs || a.startedTs || a.ts || 0).getTime())
+        .slice(0, 2);
+
+      if (visibleJobs.length === 0) {
+        widgetJobsEl.innerHTML = '<div class="widget-job"><div class="widget-job-title">還沒有任務紀錄</div></div>';
+        return;
+      }
+
+      widgetJobsEl.innerHTML = visibleJobs.map((job) => {
+        const meta = [
+          job.batchSize ? job.batchSize + ' 則' : '',
+          Number.isFinite(job.durationMs) ? formatHumanDuration(job.durationMs) : '',
+          job.sandbox
+        ].filter(Boolean).join(' · ');
+
+        return '<div class="widget-job">' +
+          '<div class="widget-job-row">' +
+            '<div class="widget-job-status">' + escapeHtml(formatJobStatus(job.status)) + '</div>' +
+            '<div class="widget-job-time">' + escapeHtml(eventTime(job.finishedTs || job.startedTs || job.ts)) + '</div>' +
+          '</div>' +
+          '<div class="widget-job-title">' + escapeHtml(shortJobId(job.id)) + '</div>' +
+          '<div class="widget-job-meta">' + escapeHtml(meta || '等待資料') + '</div>' +
+        '</div>';
+      }).join('');
+    }
+
     function upsertMessageStatus(message, status, entry) {
       if (!message?.messageId) {
         return;
@@ -1068,6 +1349,7 @@ function htmlPage({ widget = false } = {}) {
       lastResultEl.textContent = state.lastResult;
       etaEl.textContent = estimateCompletionText();
 
+      renderWidget();
       renderWorkSteps();
       renderMessages();
       renderJobs();
