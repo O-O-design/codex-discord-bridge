@@ -49,15 +49,15 @@ npm start
 
 `npm run seed` 會建立或覆蓋 `state/codex-session`，讓 Discord bridge 後續 resume 同一條 Codex session。
 
-## macOS 背景啟動
+## tmux 背景啟動
 
 ```sh
-launchctl bootstrap gui/$(id -u) launchd/local.oo-bridge.plist
-launchctl print gui/$(id -u)/local.oo-bridge
-launchctl bootout gui/$(id -u)/local.oo-bridge
+scripts/start-tmux.sh
+tmux attach -t oo-bridge
+scripts/stop-tmux.sh
 ```
 
-LaunchAgent 會讀取本機 `.env`，stdout 寫到 `logs/bridge.out`，stderr 寫到 `logs/bridge.err`。
+tmux session 會讀取本機 `.env`，stdout 寫到 `logs/bridge.out`，stderr 寫到 `logs/bridge.err`。
 
 ## 開發檢查
 
