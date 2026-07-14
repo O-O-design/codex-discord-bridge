@@ -145,10 +145,10 @@ export async function askCodex(config, messageContext, options = {}) {
   const sandbox = options.sandbox ?? config.codexSandbox;
   const args = [
     "exec",
-    "resume",
-    "--skip-git-repo-check",
     "--sandbox",
     sandbox,
+    "resume",
+    "--skip-git-repo-check",
     "-o",
     outputFile,
     sessionId,
