@@ -119,13 +119,13 @@ async function pollLogFile() {
   }
 }
 
-function htmlPage() {
+function htmlPage({ widget = false } = {}) {
   return `<!doctype html>
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>歐歐橋接監控</title>
+  <title>${widget ? "歐歐橋接小工具" : "歐歐橋接監控"}</title>
   <style>
     :root {
       color-scheme: light;
@@ -216,6 +216,10 @@ function htmlPage() {
       border-radius: 8px;
       background: var(--panel);
       box-shadow: var(--shadow);
+    }
+
+    .widget-only {
+      display: none;
     }
 
     .focus {
@@ -442,20 +446,135 @@ function htmlPage() {
         flex-direction: column;
       }
     }
+
+    body.widget {
+      min-height: 100vh;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.42)),
+        linear-gradient(180deg, rgba(47, 103, 216, 0.12), rgba(245, 247, 250, 0.24));
+      backdrop-filter: blur(16px);
+    }
+
+    body.widget main {
+      width: min(390px, calc(100vw - 20px));
+      padding: 10px 0 14px;
+    }
+
+    body.widget header {
+      margin-bottom: 10px;
+      gap: 8px;
+    }
+
+    body.widget h1 {
+      font-size: 17px;
+    }
+
+    body.widget .sub {
+      display: none;
+    }
+
+    body.widget .pill {
+      min-height: 24px;
+      font-size: 12px;
+    }
+
+    body.widget .widget-only {
+      display: block;
+    }
+
+    body.widget .grid,
+    body.widget .layout {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    body.widget .grid {
+      margin-bottom: 8px;
+    }
+
+    body.widget .card {
+      min-height: 68px;
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.76);
+      backdrop-filter: blur(12px);
+    }
+
+    body.widget .value {
+      font-size: 20px;
+    }
+
+    body.widget .value.small {
+      font-size: 14px;
+    }
+
+    body.widget .panel {
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(12px);
+    }
+
+    body.widget .focus {
+      margin-bottom: 8px;
+    }
+
+    body.widget .focus-body {
+      grid-template-columns: 1fr;
+      gap: 10px;
+      padding: 12px;
+    }
+
+    body.widget .work-stage {
+      font-size: 16px;
+    }
+
+    body.widget .work-summary {
+      font-size: 13px;
+    }
+
+    body.widget .steps {
+      min-width: 0;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    body.widget .step {
+      min-height: 34px;
+      font-size: 11px;
+    }
+
+    body.widget .messages-list,
+    body.widget .list {
+      max-height: none;
+      min-height: 0;
+    }
+
+    body.widget .layout .panel:first-child {
+      display: none;
+    }
+
+    body.widget .item {
+      padding: 10px 12px;
+    }
+
+    body.widget .summary {
+      font-size: 12px;
+    }
+
+    body.widget .meta {
+      font-size: 11px;
+    }
   </style>
 </head>
-<body>
+<body class="${widget ? "widget" : "monitor"}">
   <main>
     <header>
       <div>
-        <h1>歐歐橋接監控</h1>
+        <h1>${widget ? "歐歐橋接小工具" : "歐歐橋接監控"}</h1>
         <div class="sub">${logFile}</div>
       </div>
       <div id="connection" class="pill">連線中</div>
     </header>
 
-    <section class="panel focus">
-      <h2>目前在做什麼</h2>
+    <section class="panel focus widget-only">
+      <h2>背景動態</h2>
       <div class="focus-body">
         <div>
           <div id="work-stage" class="work-stage">待命中</div>
@@ -1092,6 +1211,15 @@ const server = createServer(async (request, response) => {
       "cache-control": "no-store"
     });
     response.end(htmlPage());
+    return;
+  }
+
+  if (url.pathname === "/widget") {
+    response.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store"
+    });
+    response.end(htmlPage({ widget: true }));
     return;
   }
 

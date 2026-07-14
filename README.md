@@ -54,6 +54,7 @@ npm start
 不熟終端機時，可以直接雙擊根目錄裡的：
 
 - `開啟歐歐橋接.command`：啟動 Discord bridge、啟動 monitor，並打開監控頁。
+- `開啟歐歐監控小工具.command`：啟動 monitor，並打開手機寬度的長條小工具視圖。
 - `停止歐歐橋接.command`：停止 monitor 和 Discord bridge。
 
 ```sh
@@ -78,7 +79,9 @@ npm run check
 npm run monitor
 ```
 
-預設網址是 `http://127.0.0.1:3899`。它會讀取 `BRIDGE_LOG_FILE`，優先顯示「目前在做什麼」，並即時列出每句 Discord 訊息的私下狀態、bridge 事件、Codex job、queue 數、執行時間與錯誤狀態。這不是 Codex 原生即時思考視窗，而是 bridge 的後台工作狀態視窗。
+預設網址是 `http://127.0.0.1:3899`。它會讀取 `BRIDGE_LOG_FILE`，即時列出每句 Discord 訊息的私下狀態、bridge 事件、Codex job、queue 數、預估完成時間、執行時間與錯誤狀態。這不是 Codex 原生即時思考視窗，而是 bridge 的後台工作狀態視窗。
+
+小工具視圖是 `http://127.0.0.1:3899/widget`，適合用手機寬度的長條視窗放在桌面旁邊看背景動態。這仍是本機網頁，正式桌面 APP 可以之後用同一個視圖包裝。
 
 也可以用 tmux 常駐：
 
