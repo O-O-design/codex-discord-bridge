@@ -80,7 +80,7 @@ function runProcess(command, args, { cwd, timeoutMs }) {
   });
 }
 
-function buildDiscordPrompt({ author, channel, guild, content }) {
+function buildDiscordPrompt({ author, authorProfile, channel, guild, content, recentContext }) {
   return [
     "你現在是被 Discord bot「歐歐」呼叫的本機 Codex CLI。",
     "Discord bot 只是聲帶；真正回覆的是這條 Codex session。",
@@ -89,7 +89,9 @@ function buildDiscordPrompt({ author, channel, guild, content }) {
     "",
     `Discord 來源：${guild} / ${channel}`,
     `使用者：${author}`,
+    authorProfile ? `使用者身份資料：${authorProfile}` : "",
     "",
+    recentContext ? `最近頻道上下文（舊到新）：\n${recentContext}\n` : "",
     "使用者訊息：",
     content
   ].join("\n");

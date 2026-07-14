@@ -1,8 +1,10 @@
 import { Client, Events, GatewayIntentBits } from "discord.js";
 import { askCodex } from "./codex.js";
 import { getConfig } from "./config.js";
+import { loadMemberRoster } from "./members.js";
 
 const config = getConfig();
+const memberRoster = await loadMemberRoster(config.memberRosterFile);
 
 const client = new Client({
   intents: [
@@ -54,6 +56,59 @@ async function sendMessageChunks(channel, content) {
   }
 }
 
+function formatAuthor(user) {
+  const profile = memberRoster.describeUser(user);
+  const label = user.bot ? `${user.username} [bot]` : user.tag ?? user.username;
+
+  return profile ? `${label}（${profile}）` : label;
+}
+
+function excerptMessageContent(message) {
+  const raw = (message.content || "(無文字／可能是圖或貼圖)").replace(/[\r\n]+/g, " ⏎ ");
+
+  return raw.length > 200 ? `${raw.slice(0, 200)}...` : raw;
+}
+
+async function describeReply(message) {
+  const referenceId = message.reference?.messageId;
+
+  if (!referenceId || !("messages" in message.channel)) {
+    return "";
+  }
+
+  try {
+    const referenced = await message.channel.messages.fetch(referenceId);
+    const isSelf = referenced.author.id === message.client.user?.id;
+    const who = isSelf ? "你自己" : formatAuthor(referenced.author);
+
+    return `↩ 這則是在「引用回覆」${who}：「${excerptMessageContent(referenced)}」`;
+  } catch {
+    return "";
+  }
+}
+
+async function getRecentContext(channel) {
+  try {
+    const messages = await channel.messages.fetch({ limit: config.discordContextLimit });
+    const contextLines = await Promise.all(
+      [...messages.values()]
+        .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
+        .map(async (item) => {
+          const author = item.author ? formatAuthor(item.author) : "unknown";
+          const content = item.content?.trim() || "[message content unavailable]";
+          const replyContext = await describeReply(item);
+
+          return [replyContext, `${author}: ${content}`].filter(Boolean).join("\n");
+        })
+    );
+
+    return contextLines.join("\n");
+  } catch (error) {
+    console.warn(`[discord] failed to fetch recent context: ${error.message}`);
+    return "";
+  }
+}
+
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`[oo-bridge] logged in as ${readyClient.user.tag}`);
   console.log(`[oo-bridge] locked to guild ${config.guildId}, channel ${config.channelId}`);
@@ -72,13 +127,16 @@ client.on(Events.MessageCreate, async (message) => {
   }
 
   const content = cleanMessageText(message);
+  const replyContext = await describeReply(message);
   console.log(`[discord] accepted ${message.author.tag}: ${content}`);
 
   pendingMessages.push({
     author: message.author.tag,
+    authorProfile: memberRoster.describeUser(message.author),
     channel: message.channel?.name ?? message.channelId,
     guild: message.guild?.name ?? message.guildId,
-    content
+    content,
+    replyContext
   });
 
   if (batchTimer) {
@@ -98,11 +156,13 @@ function enqueueCodexBatch(message, batch) {
   const first = batch[0];
   const content =
     batch.length === 1
-      ? first.content
+      ? [first.replyContext, first.content].filter(Boolean).join("\n")
       : [
           "以下是同一個 Discord 頻道內短時間連續訊息，請整體理解後自然回覆，不要逐句機械拆答：",
           "",
-          ...batch.map((item) => `${item.author}: ${item.content}`)
+          ...batch.map((item) =>
+            [item.replyContext, `${item.author}: ${item.content}`].filter(Boolean).join("\n")
+          )
         ].join("\n");
 
   codexQueue = codexQueue
@@ -113,11 +173,14 @@ function enqueueCodexBatch(message, batch) {
       }, 8_000);
 
       try {
+        const recentContext = await getRecentContext(message.channel);
         const response = await askCodex(config, {
           author: message.author.tag,
+          authorProfile: first.authorProfile,
           channel: first.channel,
           guild: first.guild,
-          content
+          content,
+          recentContext
         });
 
         await sendMessageChunks(message.channel, response);

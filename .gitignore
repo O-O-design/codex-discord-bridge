@@ -2,6 +2,7 @@
 node_modules/
 state/*
 !state/.gitkeep
+*.csv
+private/
 .DS_Store
 npm-debug.log*
-

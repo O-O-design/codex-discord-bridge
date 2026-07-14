@@ -29,6 +29,7 @@ function intEnv(name, fallback) {
 
 export function getConfig({ requireDiscord = true } = {}) {
   const codexSessionFile = process.env.CODEX_SESSION_FILE?.trim() || "state/codex-session";
+  const memberRosterFile = process.env.MEMBER_ROSTER_FILE?.trim();
 
   const config = {
     discordToken: process.env.DISCORD_TOKEN?.trim(),
@@ -40,7 +41,9 @@ export function getConfig({ requireDiscord = true } = {}) {
     codexSessionFile: resolve(process.cwd(), codexSessionFile),
     codexSandbox: process.env.CODEX_SANDBOX?.trim() || "read-only",
     codexTimeoutMs: intEnv("CODEX_TIMEOUT_MS", 90_000),
-    discordBatchWindowMs: intEnv("DISCORD_BATCH_WINDOW_MS", 1_500)
+    discordBatchWindowMs: intEnv("DISCORD_BATCH_WINDOW_MS", 1_500),
+    discordContextLimit: intEnv("DISCORD_CONTEXT_LIMIT", 10),
+    memberRosterFile: memberRosterFile ? resolve(process.cwd(), memberRosterFile) : null
   };
 
   if (requireDiscord) {
