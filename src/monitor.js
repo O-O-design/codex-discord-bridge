@@ -497,7 +497,7 @@ function htmlPage({ widget = false } = {}) {
     }
 
     .widget-body {
-      padding: 20px 18px 18px;
+      padding: 16px 18px 18px;
     }
 
     .widget-top {
@@ -505,7 +505,7 @@ function htmlPage({ widget = false } = {}) {
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      margin-bottom: 18px;
+      margin-bottom: 12px;
     }
 
     .widget-brand {
@@ -518,28 +518,38 @@ function htmlPage({ widget = false } = {}) {
     .widget-badge {
       display: grid;
       place-items: center;
-      width: 30px;
-      height: 30px;
+      width: 28px;
+      height: 28px;
       border-radius: 50%;
       background: #e7ddff;
       color: #1f1b2d;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 750;
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
     }
 
+    .widget-heading {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      min-width: 0;
+    }
+
     .widget-kicker {
       color: var(--text);
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 700;
       letter-spacing: 0;
+      white-space: nowrap;
     }
 
     .widget-title {
       margin: 0;
-      font-size: 24px;
-      font-weight: 800;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
       line-height: 1.15;
+      white-space: nowrap;
     }
 
     .widget-pill {
@@ -570,26 +580,26 @@ function htmlPage({ widget = false } = {}) {
 
     .widget-stage {
       display: grid;
-      grid-template-columns: auto minmax(0, 1fr);
-      gap: 12px;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 9px;
       align-items: center;
-      margin: 14px 0 14px;
-      padding: 12px;
+      margin: 8px 0 10px;
+      padding: 9px 10px;
       border: 1px solid rgba(232, 230, 238, 0.94);
-      border-radius: 16px;
+      border-radius: 14px;
       background: #f7f7f8;
     }
 
     .widget-dot {
-      width: 38px;
-      height: 38px;
+      width: 24px;
+      height: 24px;
       border-radius: 50%;
       background: linear-gradient(180deg, #34d399, #12875f);
-      box-shadow: 0 10px 22px rgba(18, 135, 95, 0.28);
+      box-shadow: 0 8px 18px rgba(18, 135, 95, 0.22);
     }
 
     .widget-stage-title {
-      font-size: 18px;
+      font-size: 15px;
       font-weight: 800;
       line-height: 1.2;
       overflow-wrap: anywhere;
@@ -598,21 +608,37 @@ function htmlPage({ widget = false } = {}) {
     .widget-stage-sub {
       margin-top: 3px;
       color: var(--muted);
-      font-size: 12px;
+      font-size: 11px;
       line-height: 1.35;
       overflow-wrap: anywhere;
+    }
+
+    .widget-ai {
+      max-width: 116px;
+      min-height: 24px;
+      padding: 0 8px;
+      border: 1px solid rgba(218, 214, 229, 0.88);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.72);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 22px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .widget-metrics {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 8px;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
 
     .widget-metric {
-      min-height: 62px;
-      padding: 10px;
+      min-height: 54px;
+      padding: 8px 10px;
       border: 1px solid rgba(236, 234, 241, 0.94);
       border-radius: 14px;
       background: #f4f4f5;
@@ -626,14 +652,14 @@ function htmlPage({ widget = false } = {}) {
 
     .widget-metric strong {
       display: block;
-      margin-top: 6px;
-      font-size: 16px;
+      margin-top: 5px;
+      font-size: 15px;
       line-height: 1.25;
       overflow-wrap: anywhere;
     }
 
     .widget-active {
-      padding: 11px 12px;
+      padding: 9px 11px;
       border: 1px solid rgba(232, 230, 238, 0.94);
       border-radius: 14px;
       background: #fbfbfb;
@@ -653,13 +679,23 @@ function htmlPage({ widget = false } = {}) {
     .widget-jobs {
       display: grid;
       gap: 8px;
-      margin-top: 12px;
+      height: clamp(236px, calc(100vh - 360px), 330px);
+      margin-top: 10px;
+      overflow: auto;
+      padding-right: 2px;
+      -webkit-app-region: no-drag;
+      scrollbar-width: none;
+    }
+
+    .widget-jobs::-webkit-scrollbar {
+      width: 0;
+      height: 0;
     }
 
     .widget-job {
-      padding: 10px 12px;
+      padding: 8px 10px;
       border: 1px solid rgba(232, 230, 238, 0.94);
-      border-radius: 14px;
+      border-radius: 12px;
       background: rgba(255, 255, 255, 0.88);
     }
 
@@ -691,7 +727,7 @@ function htmlPage({ widget = false } = {}) {
 
     .widget-job-title {
       color: var(--text);
-      font-size: 13px;
+      font-size: 12px;
       line-height: 1.35;
       overflow-wrap: anywhere;
     }
@@ -704,13 +740,14 @@ function htmlPage({ widget = false } = {}) {
       <div class="widget-body">
         <div class="widget-top">
           <div class="widget-brand">
-            <div class="widget-badge">OO</div>
-            <div class="widget-kicker">OO Bridge</div>
+            <div class="widget-badge">CD</div>
+            <div class="widget-heading">
+              <div class="widget-kicker">Codex Discord Bridge</div>
+              <div class="widget-title">橋接小工具</div>
+            </div>
           </div>
           <div id="widget-connection" class="widget-pill">連線中</div>
         </div>
-
-        <div class="widget-title">橋接小工具</div>
 
         <div class="widget-stage">
           <div id="widget-dot" class="widget-dot"></div>
@@ -718,6 +755,7 @@ function htmlPage({ widget = false } = {}) {
             <div id="widget-stage" class="widget-stage-title">待命中</div>
             <div id="widget-stage-sub" class="widget-stage-sub">等待 Discord 任務。</div>
           </div>
+          <div id="widget-ai" class="widget-ai">Codex</div>
         </div>
 
         <div class="widget-metrics">
@@ -841,6 +879,7 @@ function htmlPage({ widget = false } = {}) {
     const state = {
       connected: false,
       bridgeStatus: '等待中',
+      botTag: 'Codex',
       queueCount: 0,
       activeJobId: null,
       lastResult: '無',
@@ -864,6 +903,7 @@ function htmlPage({ widget = false } = {}) {
     const widgetDotEl = document.getElementById('widget-dot');
     const widgetStageEl = document.getElementById('widget-stage');
     const widgetStageSubEl = document.getElementById('widget-stage-sub');
+    const widgetAiEl = document.getElementById('widget-ai');
     const widgetQueueEl = document.getElementById('widget-queue');
     const widgetEtaEl = document.getElementById('widget-eta');
     const widgetLastEl = document.getElementById('widget-last');
@@ -1010,6 +1050,33 @@ function htmlPage({ widget = false } = {}) {
       return '約 ' + eventTime(Date.now() + remainingMs) + '（剩 ' + formatHumanDuration(remainingMs) + '）';
     }
 
+    function formatSecondsDuration(ms) {
+      if (!Number.isFinite(ms)) {
+        return '';
+      }
+
+      if (ms < 1000) {
+        return '<1 秒';
+      }
+
+      const seconds = ms / 1000;
+      if (seconds < 10) {
+        return seconds.toFixed(1).replace(/\.0$/, '') + ' 秒';
+      }
+
+      return Math.round(seconds) + ' 秒';
+    }
+
+    function averageResponseText() {
+      const averageMs = averageCompletedDuration();
+
+      if (!Number.isFinite(averageMs)) {
+        return state.activeJobId ? '估算中' : '無';
+      }
+
+      return '約 ' + formatSecondsDuration(averageMs) + '/次';
+    }
+
     function formatEntrySummary(entry) {
       switch (entry.event) {
         case 'bridge_log_started':
@@ -1139,8 +1206,9 @@ function htmlPage({ widget = false } = {}) {
       }
       setOptionalText(widgetStageEl, stage.title);
       setOptionalText(widgetStageSubEl, stage.sub);
+      setOptionalText(widgetAiEl, state.botTag || 'Codex');
       setOptionalText(widgetQueueEl, String(state.queueCount));
-      setOptionalText(widgetEtaEl, estimateCompletionText().replace('無待處理', '無').replace('累積資料中', '估算中'));
+      setOptionalText(widgetEtaEl, averageResponseText());
       setOptionalText(widgetLastEl, state.lastResult.replace('完成：', '').replace('失敗：', '失敗'));
       setOptionalText(widgetActiveEl, shortJobId(state.activeJobId));
 
@@ -1154,7 +1222,7 @@ function htmlPage({ widget = false } = {}) {
 
       const visibleJobs = [...jobs.values()]
         .sort((a, b) => new Date(b.finishedTs || b.startedTs || b.ts || 0).getTime() - new Date(a.finishedTs || a.startedTs || a.ts || 0).getTime())
-        .slice(0, 2);
+        .slice(0, 20);
 
       if (visibleJobs.length === 0) {
         widgetJobsEl.innerHTML = '<div class="widget-job"><div class="widget-job-title">還沒有任務紀錄</div></div>';
@@ -1224,6 +1292,7 @@ function htmlPage({ widget = false } = {}) {
 
       if (entry.event === 'bridge_ready') {
         state.bridgeStatus = entry.botTag || '已上線';
+        state.botTag = entry.botTag || state.botTag;
         setWork('idle', '橋接待命中', formatEntrySummary(entry), entryDetail(entry), 'ok');
       }
 
@@ -1467,6 +1536,7 @@ function htmlPage({ widget = false } = {}) {
       state.queueCount = 0;
       state.activeJobId = null;
       state.lastResult = '無';
+      state.botTag = 'Codex';
       setWork('idle', '待命中', '還沒有新的橋接事件。', '等待 Discord 訊息進來。', 'info');
       for (const entry of snapshot) {
         applyEntry(entry);
