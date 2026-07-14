@@ -7,7 +7,7 @@ SESSION="oo-bridge"
 cd "$ROOT"
 mkdir -p logs
 
-if /opt/homebrew/bin/tmux has-session -t "$SESSION" 2>/dev/null; then
+if /opt/homebrew/bin/tmux has-session -t "=$SESSION" 2>/dev/null; then
   echo "tmux session already running: $SESSION"
   exit 0
 fi

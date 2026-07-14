@@ -218,6 +218,82 @@ function htmlPage() {
       box-shadow: var(--shadow);
     }
 
+    .focus {
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+
+    .focus-body {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      padding: 16px;
+      align-items: center;
+    }
+
+    .work-stage {
+      margin-bottom: 6px;
+      color: var(--info);
+      font-size: 20px;
+      font-weight: 750;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+
+    .work-summary {
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
+    .work-detail {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(72px, 1fr));
+      gap: 8px;
+      min-width: min(430px, 42vw);
+    }
+
+    .step {
+      display: grid;
+      place-items: center;
+      min-height: 42px;
+      padding: 6px 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-2);
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .step.done {
+      border-color: rgba(22, 131, 91, 0.3);
+      background: #ebf8f1;
+      color: var(--ok);
+    }
+
+    .step.active {
+      border-color: rgba(47, 103, 216, 0.38);
+      background: #edf4ff;
+      color: var(--info);
+      font-weight: 700;
+    }
+
+    .step.failed {
+      border-color: rgba(181, 53, 66, 0.32);
+      background: #fff0f2;
+      color: var(--bad);
+      font-weight: 700;
+    }
+
     .card {
       padding: 13px 14px;
       min-height: 92px;
@@ -261,6 +337,15 @@ function htmlPage() {
       overflow: auto;
     }
 
+    .message-panel {
+      margin-bottom: 12px;
+    }
+
+    .messages-list {
+      max-height: 260px;
+      min-height: 150px;
+    }
+
     .item {
       padding: 11px 14px;
       border-bottom: 1px solid var(--line);
@@ -298,8 +383,20 @@ function htmlPage() {
 
     .event.codex_queued,
     .event.codex_start,
-    .event.codex_running {
+    .event.codex_running,
+    .event.received,
+    .event.queued,
+    .event.context,
+    .event.codex {
       color: var(--warn);
+    }
+
+    .event.done {
+      color: var(--ok);
+    }
+
+    .event.failed {
+      color: var(--bad);
     }
 
     .time {
@@ -329,9 +426,15 @@ function htmlPage() {
     }
 
     @media (max-width: 860px) {
+      .focus-body,
       .grid,
       .layout {
         grid-template-columns: 1fr;
+      }
+
+      .steps {
+        min-width: 0;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
       header {
@@ -350,6 +453,18 @@ function htmlPage() {
       </div>
       <div id="connection" class="pill">連線中</div>
     </header>
+
+    <section class="panel focus">
+      <h2>目前在做什麼</h2>
+      <div class="focus-body">
+        <div>
+          <div id="work-stage" class="work-stage">待命中</div>
+          <div id="work-summary" class="work-summary">還沒有新的橋接事件。</div>
+          <div id="work-detail" class="work-detail">等待 Discord 訊息進來。</div>
+        </div>
+        <div id="work-steps" class="steps"></div>
+      </div>
+    </section>
 
     <section class="grid">
       <div class="card">
@@ -370,6 +485,11 @@ function htmlPage() {
       </div>
     </section>
 
+    <section class="panel message-panel">
+      <h2>每句訊息狀態</h2>
+      <div id="messages" class="list messages-list"></div>
+    </section>
+
     <section class="layout">
       <div class="panel">
         <h2>任務</h2>
@@ -388,8 +508,14 @@ function htmlPage() {
     const EVENT_LABELS = {
       bridge_log_started: '橋接 log 已就緒',
       bridge_ready: '橋接已上線',
+      message_accepted: '收到 Discord 訊息',
+      bot_loop_limited: 'AI 互聊煞車',
+      context_read_start: '讀取可選上下文',
+      context_read: '可選上下文已讀',
+      context_read_failed: '可選上下文讀取失敗',
       codex_queued: 'Codex 已排隊',
       codex_start: 'Codex 開始處理',
+      codex_cli_start: '呼叫 Codex CLI',
       codex_success: 'Codex 完成',
       codex_failed: 'Codex 失敗',
       discord_client_error: 'Discord 連線錯誤',
@@ -401,19 +527,46 @@ function htmlPage() {
       done: '完成',
       failed: '失敗'
     };
+    const MESSAGE_STATUS_LABELS = {
+      received: '已收到',
+      queued: '已排隊',
+      running: '開始處理',
+      context: '準備提示',
+      codex: 'Codex 處理中',
+      done: '已完成',
+      failed: '失敗'
+    };
     const state = {
       connected: false,
       bridgeStatus: '等待中',
       queueCount: 0,
       activeJobId: null,
-      lastResult: '無'
+      lastResult: '無',
+      workStep: 'idle',
+      workStage: '待命中',
+      workSummary: '還沒有新的橋接事件。',
+      workDetail: '等待 Discord 訊息進來。',
+      workTone: 'info'
     };
+    const WORK_STEPS = [
+      ['received', '收到訊息'],
+      ['context', '準備提示'],
+      ['codex', 'Codex 處理'],
+      ['reply', '送回 Discord']
+    ];
+    const WORK_STEP_ORDER = new Map(WORK_STEPS.map(([key], index) => [key, index]));
+    const messages = new Map();
 
     const connectionEl = document.getElementById('connection');
+    const workStageEl = document.getElementById('work-stage');
+    const workSummaryEl = document.getElementById('work-summary');
+    const workDetailEl = document.getElementById('work-detail');
+    const workStepsEl = document.getElementById('work-steps');
     const bridgeStatusEl = document.getElementById('bridge-status');
     const queueCountEl = document.getElementById('queue-count');
     const activeJobEl = document.getElementById('active-job');
     const lastResultEl = document.getElementById('last-result');
+    const messagesEl = document.getElementById('messages');
     const jobsEl = document.getElementById('jobs');
     const eventsEl = document.getElementById('events');
 
@@ -464,6 +617,60 @@ function htmlPage() {
       return JOB_STATUS_LABELS[status] || status || '未知';
     }
 
+    function formatMessageStatus(status) {
+      return MESSAGE_STATUS_LABELS[status] || status || '未知';
+    }
+
+    function setWork(step, stage, summary, detail = '', tone = 'info') {
+      state.workStep = step;
+      state.workStage = stage;
+      state.workSummary = summary || stage;
+      state.workDetail = detail || '';
+      state.workTone = tone;
+    }
+
+    function entryDetail(entry) {
+      return [
+        entry.channel,
+        entry.jobId,
+        entry.sandbox,
+        Number.isFinite(entry.durationMs) ? formatDuration(entry.durationMs) : ''
+      ].filter(Boolean).join(' · ');
+    }
+
+    function upsertMessageStatus(message, status, entry) {
+      if (!message?.messageId) {
+        return;
+      }
+
+      const previous = messages.get(message.messageId) || {};
+      messages.set(message.messageId, {
+        ...previous,
+        id: message.messageId,
+        status,
+        jobId: entry.jobId || previous.jobId,
+        author: message.author || previous.author || entry.author,
+        channel: entry.channel || previous.channel,
+        content: message.content || previous.content || entry.content || entry.summary,
+        updatedTs: entry.ts,
+        detail: entryDetail(entry)
+      });
+
+      if (messages.size > 80) {
+        const oldest = [...messages.values()]
+          .sort((a, b) => new Date(a.updatedTs || 0).getTime() - new Date(b.updatedTs || 0).getTime())[0];
+        if (oldest?.id) {
+          messages.delete(oldest.id);
+        }
+      }
+    }
+
+    function upsertMessagesFromEntry(entry, status) {
+      for (const message of entry.messages || []) {
+        upsertMessageStatus(message, status, entry);
+      }
+    }
+
     function applyEntry(entry) {
       entries.unshift(entry);
       if (entries.length > 120) {
@@ -476,10 +683,27 @@ function htmlPage() {
 
       if (entry.event === 'bridge_ready') {
         state.bridgeStatus = entry.botTag || '已上線';
+        setWork('idle', '橋接待命中', entry.summary || '橋接已登入 Discord。', entryDetail(entry), 'ok');
       }
 
       if (entry.event === 'bridge_log_started') {
         state.bridgeStatus = 'log 已就緒';
+        setWork('idle', '監控已啟動', entry.summary || 'runtime log 已開始寫入。', entryDetail(entry), 'ok');
+      }
+
+      if (entry.event === 'message_accepted') {
+        upsertMessageStatus({
+          messageId: entry.messageId,
+          author: entry.author,
+          content: entry.content
+        }, 'received', entry);
+        setWork(
+          'received',
+          '收到 Discord 訊息',
+          entry.content || entry.summary || '已收到一則允許位置的訊息。',
+          entryDetail(entry),
+          'info'
+        );
       }
 
       if (entry.event === 'codex_queued' && entry.jobId) {
@@ -492,6 +716,8 @@ function htmlPage() {
           batchSize: entry.batchSize,
           sandbox: entry.sandbox
         });
+        upsertMessagesFromEntry(entry, 'queued');
+        setWork('received', '任務已排隊', entry.summary, entryDetail(entry), 'warn');
       }
 
       if (entry.event === 'codex_start' && entry.jobId) {
@@ -506,6 +732,30 @@ function htmlPage() {
           sandbox: entry.sandbox
         });
         state.activeJobId = entry.jobId;
+        upsertMessagesFromEntry(entry, 'running');
+        setWork('context', '開始處理任務', entry.summary, entryDetail(entry), 'warn');
+      }
+
+      if (entry.event === 'context_read_start') {
+        upsertMessagesFromEntry(entry, 'context');
+        setWork('context', '讀取可選上下文', entry.summary, entryDetail(entry), 'warn');
+      }
+
+      if (entry.event === 'context_read') {
+        setWork('context', '可選上下文已整理', entry.summary, entryDetail(entry), 'info');
+      }
+
+      if (entry.event === 'context_read_failed') {
+        setWork('context', '可選上下文讀取失敗', entry.summary, entryDetail(entry), 'bad');
+      }
+
+      if (entry.event === 'bot_loop_limited') {
+        setWork('idle', 'AI 互聊煞車已啟動', entry.summary, entryDetail(entry), 'warn');
+      }
+
+      if (entry.event === 'codex_cli_start') {
+        upsertMessagesFromEntry(entry, 'codex');
+        setWork('codex', '交給 Codex CLI', entry.summary, entryDetail(entry), 'warn');
       }
 
       if ((entry.event === 'codex_success' || entry.event === 'codex_failed') && entry.jobId) {
@@ -524,19 +774,91 @@ function htmlPage() {
           state.activeJobId = null;
         }
         state.lastResult = failed ? '失敗：' + (entry.error || entry.jobId) : '完成：' + formatDuration(entry.durationMs);
+        upsertMessagesFromEntry(entry, failed ? 'failed' : 'done');
+        setWork(
+          failed ? 'failed' : 'done',
+          failed ? '任務卡住或失敗' : '已回覆 Discord',
+          failed ? (entry.error || entry.summary) : (entry.response || entry.summary),
+          entryDetail(entry),
+          failed ? 'bad' : 'ok'
+        );
+      }
+
+      if (entry.event === 'discord_client_error') {
+        setWork('failed', 'Discord 連線錯誤', entry.summary, entryDetail(entry), 'bad');
       }
     }
 
     function render() {
       connectionEl.textContent = state.connected ? '即時連線' : '重新連線中';
       connectionEl.className = state.connected ? 'pill live' : 'pill';
+      workStageEl.textContent = state.workStage;
+      workStageEl.style.color = state.workTone === 'bad'
+        ? 'var(--bad)'
+        : state.workTone === 'ok'
+          ? 'var(--ok)'
+          : state.workTone === 'warn'
+            ? 'var(--warn)'
+            : 'var(--info)';
+      workSummaryEl.textContent = state.workSummary;
+      workDetailEl.textContent = state.workDetail || ' ';
       bridgeStatusEl.textContent = state.bridgeStatus;
       queueCountEl.textContent = String(state.queueCount);
       activeJobEl.textContent = state.activeJobId || '無';
       lastResultEl.textContent = state.lastResult;
 
+      renderWorkSteps();
+      renderMessages();
       renderJobs();
       renderEvents();
+    }
+
+    function renderWorkSteps() {
+      const currentIndex = WORK_STEP_ORDER.get(state.workStep);
+      const failed = state.workStep === 'failed';
+      const done = state.workStep === 'done';
+
+      workStepsEl.innerHTML = WORK_STEPS.map(([key, label], index) => {
+        let className = 'step';
+        if (failed && index >= 2) {
+          className += ' failed';
+        } else if (done || (Number.isInteger(currentIndex) && index < currentIndex)) {
+          className += ' done';
+        } else if (key === state.workStep) {
+          className += ' active';
+        }
+
+        return '<div class="' + className + '">' + escapeHtml(label) + '</div>';
+      }).join('');
+    }
+
+    function renderMessages() {
+      const sortedMessages = [...messages.values()].sort((a, b) => {
+        return new Date(b.updatedTs || 0).getTime() - new Date(a.updatedTs || 0).getTime();
+      }).slice(0, 40);
+
+      if (sortedMessages.length === 0) {
+        messagesEl.innerHTML = '<div class="empty">還沒有收到訊息。</div>';
+        return;
+      }
+
+      messagesEl.innerHTML = sortedMessages.map((message) => {
+        const meta = [
+          message.author,
+          message.channel,
+          message.jobId,
+          message.id
+        ].filter(Boolean).join(' · ');
+
+        return '<div class="item">' +
+          '<div class="row">' +
+            '<div class="event ' + escapeHtml(message.status) + '">' + escapeHtml(formatMessageStatus(message.status)) + '</div>' +
+            '<div class="time">' + escapeHtml(eventTime(message.updatedTs)) + '</div>' +
+          '</div>' +
+          '<div class="summary">' + escapeHtml(message.content || message.id) + '</div>' +
+          '<div class="meta">' + escapeHtml(meta) + '</div>' +
+        '</div>';
+      }).join('');
     }
 
     function renderJobs() {
@@ -598,9 +920,11 @@ function htmlPage() {
     function resetFromSnapshot(snapshot) {
       entries.length = 0;
       jobs.clear();
+      messages.clear();
       state.queueCount = 0;
       state.activeJobId = null;
       state.lastResult = '無';
+      setWork('idle', '待命中', '還沒有新的橋接事件。', '等待 Discord 訊息進來。', 'info');
       for (const entry of snapshot) {
         applyEntry(entry);
       }

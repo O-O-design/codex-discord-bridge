@@ -78,7 +78,7 @@ npm run check
 npm run monitor
 ```
 
-預設網址是 `http://127.0.0.1:3899`。它會讀取 `BRIDGE_LOG_FILE`，即時顯示 bridge 事件、Codex job、queue 數、執行時間與錯誤狀態。這不是 Codex 原生即時思考視窗，而是 bridge 的後台狀態視窗。
+預設網址是 `http://127.0.0.1:3899`。它會讀取 `BRIDGE_LOG_FILE`，優先顯示「目前在做什麼」，並即時列出每句 Discord 訊息的私下狀態、bridge 事件、Codex job、queue 數、執行時間與錯誤狀態。這不是 Codex 原生即時思考視窗，而是 bridge 的後台工作狀態視窗。
 
 也可以用 tmux 常駐：
 
@@ -87,11 +87,14 @@ scripts/start-monitor-tmux.sh
 scripts/stop-monitor-tmux.sh
 ```
 
-## 對話節流
+## 對話節流與防暴走
 
 - `DISCORD_BATCH_WINDOW_MS`：連續訊息合併視窗，預設 `1500`。
 - `CODEX_TIMEOUT_MS`：單次 Codex CLI 最長等待時間，預設 `180000`。
-- `DISCORD_CONTEXT_LIMIT`：每次回覆前讀取的最近頻道訊息數，預設 `50`。
+- `DISCORD_CONTEXT_LIMIT`：可選的最近頻道上下文讀取數，預設 `0`；`0` 代表不額外讀最近訊息，只使用本次批次訊息與 Discord 引用回覆。
+- `DISCORD_BOT_LOOP_MAX_TURNS`：同一頻道內允許白名單 AI bot 連續觸發 Codex 的最大回合數，預設 `4`。
+- `DISCORD_BOT_LOOP_WINDOW_MS`：計算 AI bot 互聊回合的時間窗，預設 `600000`。
+- `DISCORD_BOT_LOOP_COOLDOWN_MS`：AI bot 互聊超過上限後的冷卻時間，預設 `300000`。
 - `BRIDGE_LOG_FILE`：本機 runtime log 檔，預設 `logs/bridge.ndjson`，不發到 Discord、不進 git。
 - `BRIDGE_LOG_MESSAGE_LIMIT`：每筆 log 裡訊息與回覆摘要的最大字數，預設 `800`。
 - `MONITOR_PORT`：本機監控頁 port，預設 `3899`。
@@ -108,12 +111,14 @@ scripts/stop-monitor-tmux.sh
 
 如果 Codex CLI 單回合卡住，bridge 會殺掉該回合並回報卡住，避免整條 Discord queue 死鎖。
 
-Runtime log 會記錄實際後台事件：bridge 啟動、收到允許位置的訊息、讀取最近上下文、呼叫 Codex、回覆成功或錯誤。它是本機排錯與查看狀態用，不是 Discord 旁白，也不顯示模型私密推理。
+白名單 AI bot 可以互相對話，但 bridge 會在同一頻道內用 `DISCORD_BOT_LOOP_MAX_TURNS` / `DISCORD_BOT_LOOP_WINDOW_MS` / `DISCORD_BOT_LOOP_COOLDOWN_MS` 作硬限制，超過就安靜略過，不再 enqueue Codex。人的訊息會重置該頻道的 AI 互聊計數。
+
+Runtime log 會記錄實際後台事件：bridge 啟動、收到允許位置的訊息、AI 互聊煞車、可選上下文讀取、呼叫 Codex、回覆成功或錯誤。它是本機排錯與查看狀態用，不是 Discord 旁白，也不顯示模型私密推理。
 黑名單位置只會記錄 `message_blocked` 與位置資訊，不會記錄訊息文字。
 
 監控頁只讀 runtime log，並以較親和的方式呈現「收到、排隊、執行中、完成、timeout / failed」等橋接狀態；不會修改 Discord 或 Codex session。
 
-讀取最近訊息需要 bot 在目標頻道具備讀取訊息歷史與訊息內容權限；如果抓取失敗，bridge 會降級成只回覆當前批次。
+只有在 `DISCORD_CONTEXT_LIMIT` 大於 `0` 時，bridge 才會讀取最近頻道訊息；這需要 bot 在目標頻道具備讀取訊息歷史與訊息內容權限。如果抓取失敗，bridge 會降級成只回覆當前批次。
 
 如果使用者用 Discord 的「引用回覆」，bridge 會嘗試抓取被引用訊息，並在 prompt 裡補上 `↩ 這則是在「引用回覆」...`。抓不到時會安靜略過。
 

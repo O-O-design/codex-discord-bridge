@@ -29,6 +29,7 @@ const blockedParentChannelIds = new Set(config.blockedParentChannelIds);
 const allowedBotAuthorIds = new Set(config.allowedBotAuthorIds);
 const writeUserIds = new Set(config.writeUserIds);
 const pendingBatches = new Map();
+const botLoopState = new Map();
 
 function cleanMessageText(message) {
   return (
@@ -116,7 +117,7 @@ async function getRecentContext(channel) {
 
     const context = contextLines.join("\n");
     await appendRuntimeLog("context_read", {
-      summary: `read ${contextLines.length} recent messages from ${channel.name ?? channel.id}`,
+      summary: `read ${contextLines.length} optional context message(s) from ${channel.name ?? channel.id}`,
       channelId: channel.id,
       channel: channel.name ?? null,
       count: contextLines.length
@@ -124,9 +125,9 @@ async function getRecentContext(channel) {
 
     return context;
   } catch (error) {
-    console.warn(`[discord] failed to fetch recent context: ${error.message}`);
+    console.warn(`[discord] failed to fetch optional context: ${error.message}`);
     await appendRuntimeLog("context_read_failed", {
-      summary: `failed to read recent context: ${error.message}`,
+      summary: `failed to read optional context: ${error.message}`,
       channelId: channel.id,
       channel: channel.name ?? null,
       error: error.message
@@ -165,6 +166,72 @@ function channelLabel(message) {
   return message.channel?.isThread?.() && message.channel.parent?.name
     ? `${message.channel.parent.name} / ${name}`
     : name;
+}
+
+function channelStateKey(message) {
+  return `${message.guildId}:${message.channelId}`;
+}
+
+function resetBotLoopGuard(message) {
+  botLoopState.delete(channelStateKey(message));
+}
+
+function checkBotLoopGuard(message) {
+  if (!message.author.bot) {
+    resetBotLoopGuard(message);
+    return { allowed: true };
+  }
+
+  const now = Date.now();
+  const key = channelStateKey(message);
+  const state = botLoopState.get(key) ?? {
+    windowStartedAt: now,
+    turnCount: 0,
+    cooldownUntil: 0
+  };
+
+  if (state.cooldownUntil > now) {
+    botLoopState.set(key, state);
+    return {
+      allowed: false,
+      reason: "cooldown",
+      turnCount: state.turnCount,
+      cooldownRemainingMs: state.cooldownUntil - now
+    };
+  }
+
+  if (state.cooldownUntil > 0) {
+    state.windowStartedAt = now;
+    state.turnCount = 0;
+    state.cooldownUntil = 0;
+  }
+
+  if (now - state.windowStartedAt > config.discordBotLoopWindowMs) {
+    state.windowStartedAt = now;
+    state.turnCount = 0;
+    state.cooldownUntil = 0;
+  }
+
+  if (state.turnCount >= config.discordBotLoopMaxTurns) {
+    state.cooldownUntil = now + config.discordBotLoopCooldownMs;
+    botLoopState.set(key, state);
+    return {
+      allowed: false,
+      reason: "max_turns",
+      turnCount: state.turnCount,
+      cooldownRemainingMs: config.discordBotLoopCooldownMs
+    };
+  }
+
+  state.turnCount += 1;
+  botLoopState.set(key, state);
+
+  return {
+    allowed: true,
+    turnCount: state.turnCount,
+    maxTurns: config.discordBotLoopMaxTurns,
+    windowMs: config.discordBotLoopWindowMs
+  };
 }
 
 client.once(Events.ClientReady, async (readyClient) => {
@@ -218,6 +285,28 @@ client.on(Events.MessageCreate, async (message) => {
     return;
   }
 
+  const botLoop = checkBotLoopGuard(message);
+  if (!botLoop.allowed) {
+    await appendRuntimeLog("bot_loop_limited", {
+      summary: `AI bot conversation guard skipped ${message.author.tag} in ${channelLabel(message)} after ${botLoop.turnCount} turn(s)`,
+      reason: botLoop.reason,
+      messageId: message.id,
+      guildId: message.guildId,
+      guild: message.guild?.name ?? null,
+      channelId: message.channelId,
+      channel: channelLabel(message),
+      parentChannelId: message.channel?.parentId ?? null,
+      author: message.author.tag,
+      authorId: message.author.id,
+      authorIsBot: message.author.bot,
+      turnCount: botLoop.turnCount,
+      maxTurns: config.discordBotLoopMaxTurns,
+      windowMs: config.discordBotLoopWindowMs,
+      cooldownRemainingMs: botLoop.cooldownRemainingMs
+    });
+    return;
+  }
+
   const content = cleanMessageText(message);
   const replyContext = await describeReply(message);
   console.log(`[discord] accepted ${message.author.tag}: ${content}`);
@@ -244,6 +333,7 @@ client.on(Events.MessageCreate, async (message) => {
   };
 
   batch.messages.push({
+    messageId: message.id,
     author: message.author.tag,
     authorId: message.author.id,
     authorProfile: memberRoster.describeUser(message.author),
@@ -297,6 +387,12 @@ function enqueueCodexBatch(message, batch) {
     sandbox,
     queuedJobCount,
     activeJobId,
+    messages: batch.map((item) => ({
+      messageId: item.messageId,
+      author: item.author,
+      authorId: item.authorId,
+      content: limitText(item.content)
+    })),
     authors: batch.map((item) => ({
       author: item.author,
       authorId: item.authorId
@@ -319,6 +415,12 @@ function enqueueCodexBatch(message, batch) {
         sandbox,
         queuedJobCount,
         activeJobId,
+        messages: batch.map((item) => ({
+          messageId: item.messageId,
+          author: item.author,
+          authorId: item.authorId,
+          content: limitText(item.content)
+        })),
         authors: batch.map((item) => ({
           author: item.author,
           authorId: item.authorId
@@ -329,7 +431,45 @@ function enqueueCodexBatch(message, batch) {
       }, 8_000);
 
       try {
-        const recentContext = await getRecentContext(message.channel);
+        let recentContext = "";
+        if (config.discordContextLimit > 0) {
+          await appendRuntimeLog("context_read_start", {
+            summary: `reading optional context for Codex job ${jobId} in ${first.channel}`,
+            jobId,
+            guild: first.guild,
+            channel: first.channel,
+            channelId: message.channelId,
+            sandbox,
+            queuedJobCount,
+            activeJobId,
+            contextLimit: config.discordContextLimit,
+            messages: batch.map((item) => ({
+              messageId: item.messageId,
+              author: item.author,
+              authorId: item.authorId,
+              content: limitText(item.content)
+            }))
+          });
+          recentContext = await getRecentContext(message.channel);
+        }
+        await appendRuntimeLog("codex_cli_start", {
+          summary: `calling Codex CLI for job ${jobId} in ${first.channel}`,
+          jobId,
+          guild: first.guild,
+          channel: first.channel,
+          channelId: message.channelId,
+          sandbox,
+          queuedJobCount,
+          activeJobId,
+          contextLimit: config.discordContextLimit,
+          contextLength: recentContext.length,
+          messages: batch.map((item) => ({
+            messageId: item.messageId,
+            author: item.author,
+            authorId: item.authorId,
+            content: limitText(item.content)
+          }))
+        });
         const response = await askCodex(config, {
           author: message.author.tag,
           authorProfile: first.authorProfile,
@@ -355,7 +495,13 @@ function enqueueCodexBatch(message, batch) {
           durationMs: Date.now() - startedAt,
           queuedJobCount,
           responseLength: response.length,
-          response: limitText(response)
+          response: limitText(response),
+          messages: batch.map((item) => ({
+            messageId: item.messageId,
+            author: item.author,
+            authorId: item.authorId,
+            content: limitText(item.content)
+          }))
         });
       } catch (error) {
         console.error("[codex] failed:", error.message);
@@ -373,7 +519,13 @@ function enqueueCodexBatch(message, batch) {
           queuedJobCount,
           error: error.message,
           stderr: limitText(error.stderr),
-          stdout: limitText(error.stdout)
+          stdout: limitText(error.stdout),
+          messages: batch.map((item) => ({
+            messageId: item.messageId,
+            author: item.author,
+            authorId: item.authorId,
+            content: limitText(item.content)
+          }))
         });
         await message.channel.send("我這邊叫 Codex CLI 的時候卡住了，先把這回合放掉，下一句可以繼續。");
       } finally {

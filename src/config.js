@@ -27,6 +27,22 @@ function intEnv(name, fallback) {
   return parsed;
 }
 
+function nonNegativeIntEnv(name, fallback) {
+  const value = process.env[name]?.trim();
+
+  if (!value) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`Environment variable ${name} must be a non-negative integer.`);
+  }
+
+  return parsed;
+}
+
 function listEnv(name) {
   const value = process.env[name]?.trim();
 
@@ -71,7 +87,10 @@ export function getConfig({ requireDiscord = true } = {}) {
     codexSandbox: currentCodexSandbox(),
     codexTimeoutMs: intEnv("CODEX_TIMEOUT_MS", 180_000),
     discordBatchWindowMs: intEnv("DISCORD_BATCH_WINDOW_MS", 1_500),
-    discordContextLimit: intEnv("DISCORD_CONTEXT_LIMIT", 50),
+    discordContextLimit: nonNegativeIntEnv("DISCORD_CONTEXT_LIMIT", 0),
+    discordBotLoopMaxTurns: nonNegativeIntEnv("DISCORD_BOT_LOOP_MAX_TURNS", 4),
+    discordBotLoopWindowMs: intEnv("DISCORD_BOT_LOOP_WINDOW_MS", 10 * 60_000),
+    discordBotLoopCooldownMs: intEnv("DISCORD_BOT_LOOP_COOLDOWN_MS", 5 * 60_000),
     bridgeLogFile: process.env.BRIDGE_LOG_FILE?.trim() || "logs/bridge.ndjson",
     bridgeLogMessageLimit: intEnv("BRIDGE_LOG_MESSAGE_LIMIT", 800),
     monitorPort: intEnv("MONITOR_PORT", 3899),
