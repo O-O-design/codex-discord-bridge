@@ -1155,7 +1155,7 @@ function htmlPage({ widget = false } = {}) {
         const activeJob = jobs.get(state.activeJobId);
         return {
           title: activeJob?.status === 'running' ? 'Codex 處理中' : '任務處理中',
-          sub: shortJobId(state.activeJobId),
+          sub: '正在產生 Discord 回覆',
           tone: 'warn'
         };
       }
@@ -1194,6 +1194,49 @@ function htmlPage({ widget = false } = {}) {
       };
     }
 
+    function formatWidgetJobTitle(job) {
+      if (job.status === 'done') {
+        return '已回覆 Discord';
+      }
+
+      if (job.status === 'failed') {
+        return '回覆失敗';
+      }
+
+      if (job.status === 'running') {
+        return '正在產生回覆';
+      }
+
+      if (job.status === 'queued') {
+        return '等待處理';
+      }
+
+      return '任務更新';
+    }
+
+    function formatWidgetJobMeta(job) {
+      const parts = [];
+
+      if (job.batchSize) {
+        parts.push(job.batchSize + ' 則訊息');
+      }
+
+      if (Number.isFinite(job.durationMs)) {
+        parts.push('耗時 ' + formatSecondsDuration(job.durationMs));
+      } else if (job.status === 'running' && job.startedTs) {
+        const startedAt = new Date(job.startedTs).getTime();
+        if (Number.isFinite(startedAt)) {
+          parts.push('已處理 ' + formatSecondsDuration(Date.now() - startedAt));
+        }
+      }
+
+      if (job.status === 'failed' && job.error) {
+        parts.push('需要檢查錯誤');
+      }
+
+      return parts.join(' · ') || '等待資料';
+    }
+
     function renderWidget() {
       if (!widgetJobsEl) {
         return;
@@ -1210,7 +1253,7 @@ function htmlPage({ widget = false } = {}) {
       setOptionalText(widgetQueueEl, String(state.queueCount));
       setOptionalText(widgetEtaEl, averageResponseText());
       setOptionalText(widgetLastEl, state.lastResult.replace('完成：', '').replace('失敗：', '失敗'));
-      setOptionalText(widgetActiveEl, shortJobId(state.activeJobId));
+      setOptionalText(widgetActiveEl, state.activeJobId ? '回覆處理中' : '無');
 
       if (widgetDotEl) {
         widgetDotEl.style.background = stage.tone === 'bad'
@@ -1230,19 +1273,13 @@ function htmlPage({ widget = false } = {}) {
       }
 
       widgetJobsEl.innerHTML = visibleJobs.map((job) => {
-        const meta = [
-          job.batchSize ? job.batchSize + ' 則' : '',
-          Number.isFinite(job.durationMs) ? formatHumanDuration(job.durationMs) : '',
-          job.sandbox
-        ].filter(Boolean).join(' · ');
-
         return '<div class="widget-job">' +
           '<div class="widget-job-row">' +
             '<div class="widget-job-status">' + escapeHtml(formatJobStatus(job.status)) + '</div>' +
             '<div class="widget-job-time">' + escapeHtml(eventTime(job.finishedTs || job.startedTs || job.ts)) + '</div>' +
           '</div>' +
-          '<div class="widget-job-title">' + escapeHtml(shortJobId(job.id)) + '</div>' +
-          '<div class="widget-job-meta">' + escapeHtml(meta || '等待資料') + '</div>' +
+          '<div class="widget-job-title">' + escapeHtml(formatWidgetJobTitle(job)) + '</div>' +
+          '<div class="widget-job-meta">' + escapeHtml(formatWidgetJobMeta(job)) + '</div>' +
         '</div>';
       }).join('');
     }
