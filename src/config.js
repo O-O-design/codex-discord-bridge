@@ -48,11 +48,12 @@ function boolEnv(name, fallback) {
 export function getConfig({ requireDiscord = true } = {}) {
   const codexSessionFile = process.env.CODEX_SESSION_FILE?.trim() || "state/codex-session";
   const memberRosterFile = process.env.MEMBER_ROSTER_FILE?.trim();
-  const monitorChannelId = process.env.DISCORD_MONITOR_CHANNEL_ID?.trim();
+  const narrationChannelId = process.env.DISCORD_NARRATION_CHANNEL_ID?.trim();
 
   const config = {
     discordToken: process.env.DISCORD_TOKEN?.trim(),
     discordClientId: process.env.DISCORD_CLIENT_ID?.trim(),
+    discordOwnerUserId: process.env.DISCORD_OWNER_USER_ID?.trim() || null,
     guildId: process.env.DISCORD_GUILD_ID?.trim(),
     channelId: process.env.DISCORD_CHANNEL_ID?.trim(),
     codexCliPath:
@@ -63,8 +64,8 @@ export function getConfig({ requireDiscord = true } = {}) {
     discordBatchWindowMs: intEnv("DISCORD_BATCH_WINDOW_MS", 1_500),
     discordContextLimit: intEnv("DISCORD_CONTEXT_LIMIT", 10),
     memberRosterFile: memberRosterFile ? resolve(process.cwd(), memberRosterFile) : null,
-    monitorEnabled: boolEnv("DISCORD_MONITOR_ENABLED", false),
-    monitorChannelId: monitorChannelId || null
+    narrationEnabled: boolEnv("DISCORD_NARRATION_ENABLED", false),
+    narrationChannelId: narrationChannelId || null
   };
 
   if (requireDiscord) {
