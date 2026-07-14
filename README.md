@@ -31,6 +31,7 @@ cp .env.example .env
 - Channels: `1526559984786084032`
 - Parent channels: `1500130334434529352`
 - Threads: `1507476386758004958`
+- Blocked channels: `1516343829266038915`
 
 ## 啟動
 
@@ -60,6 +61,8 @@ npm run check
 - `DISCORD_CHANNEL_IDS`：允許反應的一般頻道 ID，以逗號分隔。
 - `DISCORD_PARENT_CHANNEL_IDS`：允許其底下 thread/post 反應的 parent channel 或 forum ID，以逗號分隔。
 - `DISCORD_THREAD_IDS`：允許反應的 thread ID，以逗號分隔。
+- `DISCORD_BLOCKED_CHANNEL_IDS`：黑名單頻道或 thread ID，以逗號分隔；優先於白名單，不讀內容。
+- `DISCORD_BLOCKED_PARENT_CHANNEL_IDS`：黑名單 parent channel 或 forum ID，以逗號分隔；其底下 thread/post 一律不讀內容。
 - `DISCORD_ALLOWED_BOT_AUTHOR_IDS`：允許讀取的其他 bot 作者 ID，以逗號分隔；目前包含歐德 `1484555705720766585`。bridge 永遠不讀自己的訊息，避免自我回音。
 - `DISCORD_WRITE_USER_IDS`：允許使用 `CODEX_SANDBOX` 寫入權限的 Discord user ID，以逗號分隔；不在清單內的發言一律用 `read-only` 呼叫 Codex。
 - `CODEX_SANDBOX`：Codex CLI sandbox，預設 `workspace-write`，讓 Discord 端呼叫的 Codex 可以改這個工作區；只接受 `read-only`、`workspace-write`、`danger-full-access`。
@@ -67,6 +70,7 @@ npm run check
 如果 Codex CLI 單回合卡住，bridge 會殺掉該回合並回報卡住，避免整條 Discord queue 死鎖。
 
 Runtime log 會記錄實際後台事件：bridge 啟動、收到允許位置的訊息、讀取最近上下文、呼叫 Codex、回覆成功或錯誤。它是本機排錯與查看狀態用，不是 Discord 旁白，也不顯示模型私密推理。
+黑名單位置只會記錄 `message_blocked` 與位置資訊，不會記錄訊息文字。
 
 讀取最近訊息需要 bot 在目標頻道具備讀取訊息歷史與訊息內容權限；如果抓取失敗，bridge 會降級成只回覆當前批次。
 

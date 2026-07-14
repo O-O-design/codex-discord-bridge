@@ -53,6 +53,8 @@ export function getConfig({ requireDiscord = true } = {}) {
   const channelIds = listEnv("DISCORD_CHANNEL_IDS");
   const parentChannelIds = listEnv("DISCORD_PARENT_CHANNEL_IDS");
   const threadIds = listEnv("DISCORD_THREAD_IDS");
+  const blockedChannelIds = listEnv("DISCORD_BLOCKED_CHANNEL_IDS");
+  const blockedParentChannelIds = listEnv("DISCORD_BLOCKED_PARENT_CHANNEL_IDS");
 
   const config = {
     discordToken: process.env.DISCORD_TOKEN?.trim(),
@@ -61,6 +63,8 @@ export function getConfig({ requireDiscord = true } = {}) {
     channelIds: channelIds.length > 0 ? channelIds : legacyChannelId ? [legacyChannelId] : [],
     parentChannelIds,
     threadIds,
+    blockedChannelIds,
+    blockedParentChannelIds,
     codexCliPath:
       process.env.CODEX_CLI_PATH?.trim() || "/Applications/Codex.app/Contents/Resources/codex",
     codexSessionFile: resolve(process.cwd(), codexSessionFile),

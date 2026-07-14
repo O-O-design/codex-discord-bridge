@@ -21,6 +21,8 @@ const allowedGuildIds = new Set(config.guildIds);
 const allowedChannelIds = new Set(config.channelIds);
 const allowedParentChannelIds = new Set(config.parentChannelIds);
 const allowedThreadIds = new Set(config.threadIds);
+const blockedChannelIds = new Set(config.blockedChannelIds);
+const blockedParentChannelIds = new Set(config.blockedParentChannelIds);
 const allowedBotAuthorIds = new Set(config.allowedBotAuthorIds);
 const writeUserIds = new Set(config.writeUserIds);
 const pendingBatches = new Map();
@@ -142,6 +144,18 @@ function isAllowedMessage(message) {
   return message.channel?.isThread?.() && allowedParentChannelIds.has(message.channel.parentId);
 }
 
+function blockedReason(message) {
+  if (blockedChannelIds.has(message.channelId)) {
+    return "blocked_channel";
+  }
+
+  if (message.channel?.isThread?.() && blockedParentChannelIds.has(message.channel.parentId)) {
+    return "blocked_parent_channel";
+  }
+
+  return null;
+}
+
 function channelLabel(message) {
   const name = message.channel?.name ?? message.channelId;
 
@@ -156,6 +170,8 @@ client.once(Events.ClientReady, async (readyClient) => {
   console.log(`[oo-bridge] allowed channels: ${config.channelIds.join(", ") || "(none)"}`);
   console.log(`[oo-bridge] allowed parent channels: ${config.parentChannelIds.join(", ") || "(none)"}`);
   console.log(`[oo-bridge] allowed threads: ${config.threadIds.join(", ") || "(none)"}`);
+  console.log(`[oo-bridge] blocked channels: ${config.blockedChannelIds.join(", ") || "(none)"}`);
+  console.log(`[oo-bridge] blocked parent channels: ${config.blockedParentChannelIds.join(", ") || "(none)"}`);
   await appendRuntimeLog("bridge_ready", {
     summary: `logged in as ${readyClient.user.tag}`,
     botUserId: readyClient.user.id,
@@ -163,12 +179,31 @@ client.once(Events.ClientReady, async (readyClient) => {
     allowedGuildIds: config.guildIds,
     allowedChannelIds: config.channelIds,
     allowedParentChannelIds: config.parentChannelIds,
-    allowedThreadIds: config.threadIds
+    allowedThreadIds: config.threadIds,
+    blockedChannelIds: config.blockedChannelIds,
+    blockedParentChannelIds: config.blockedParentChannelIds
   });
 });
 
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.id === client.user.id) {
+    return;
+  }
+
+  const reason = blockedReason(message);
+  if (reason) {
+    await appendRuntimeLog("message_blocked", {
+      summary: `ignored blacklisted location ${channelLabel(message)}`,
+      reason,
+      messageId: message.id,
+      guildId: message.guildId,
+      guild: message.guild?.name ?? null,
+      channelId: message.channelId,
+      channel: channelLabel(message),
+      parentChannelId: message.channel?.parentId ?? null,
+      authorId: message.author.id,
+      authorIsBot: message.author.bot
+    });
     return;
   }
 
