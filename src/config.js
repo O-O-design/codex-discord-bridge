@@ -27,35 +27,31 @@ function intEnv(name, fallback) {
   return parsed;
 }
 
-function boolEnv(name, fallback) {
-  const value = process.env[name]?.trim().toLowerCase();
+function listEnv(name) {
+  const value = process.env[name]?.trim();
 
   if (!value) {
-    return fallback;
+    return [];
   }
 
-  if (["1", "true", "yes", "on"].includes(value)) {
-    return true;
-  }
-
-  if (["0", "false", "no", "off"].includes(value)) {
-    return false;
-  }
-
-  throw new Error(`Environment variable ${name} must be boolean-like.`);
+  return [...new Set(value.split(",").map((item) => item.trim()).filter(Boolean))];
 }
 
 export function getConfig({ requireDiscord = true } = {}) {
   const codexSessionFile = process.env.CODEX_SESSION_FILE?.trim() || "state/codex-session";
   const memberRosterFile = process.env.MEMBER_ROSTER_FILE?.trim();
-  const narrationChannelId = process.env.DISCORD_NARRATION_CHANNEL_ID?.trim();
+  const legacyGuildId = process.env.DISCORD_GUILD_ID?.trim();
+  const legacyChannelId = process.env.DISCORD_CHANNEL_ID?.trim();
+  const guildIds = listEnv("DISCORD_GUILD_IDS");
+  const channelIds = listEnv("DISCORD_CHANNEL_IDS");
+  const threadIds = listEnv("DISCORD_THREAD_IDS");
 
   const config = {
     discordToken: process.env.DISCORD_TOKEN?.trim(),
     discordClientId: process.env.DISCORD_CLIENT_ID?.trim(),
-    discordOwnerUserId: process.env.DISCORD_OWNER_USER_ID?.trim() || null,
-    guildId: process.env.DISCORD_GUILD_ID?.trim(),
-    channelId: process.env.DISCORD_CHANNEL_ID?.trim(),
+    guildIds: guildIds.length > 0 ? guildIds : legacyGuildId ? [legacyGuildId] : [],
+    channelIds: channelIds.length > 0 ? channelIds : legacyChannelId ? [legacyChannelId] : [],
+    threadIds,
     codexCliPath:
       process.env.CODEX_CLI_PATH?.trim() || "/Applications/Codex.app/Contents/Resources/codex",
     codexSessionFile: resolve(process.cwd(), codexSessionFile),
@@ -63,16 +59,20 @@ export function getConfig({ requireDiscord = true } = {}) {
     codexTimeoutMs: intEnv("CODEX_TIMEOUT_MS", 90_000),
     discordBatchWindowMs: intEnv("DISCORD_BATCH_WINDOW_MS", 1_500),
     discordContextLimit: intEnv("DISCORD_CONTEXT_LIMIT", 10),
-    memberRosterFile: memberRosterFile ? resolve(process.cwd(), memberRosterFile) : null,
-    narrationEnabled: boolEnv("DISCORD_NARRATION_ENABLED", false),
-    narrationChannelId: narrationChannelId || null
+    memberRosterFile: memberRosterFile ? resolve(process.cwd(), memberRosterFile) : null
   };
 
   if (requireDiscord) {
     config.discordToken ||= required("DISCORD_TOKEN");
     config.discordClientId ||= required("DISCORD_CLIENT_ID");
-    config.guildId ||= required("DISCORD_GUILD_ID");
-    config.channelId ||= required("DISCORD_CHANNEL_ID");
+
+    if (config.guildIds.length === 0) {
+      throw new Error("Missing environment variable: DISCORD_GUILD_IDS");
+    }
+
+    if (config.channelIds.length === 0 && config.threadIds.length === 0) {
+      throw new Error("Missing environment variable: DISCORD_CHANNEL_IDS or DISCORD_THREAD_IDS");
+    }
   }
 
   return config;

@@ -15,10 +15,10 @@ const client = new Client({
 });
 
 let codexQueue = Promise.resolve();
-let batchTimer = null;
-let pendingMessages = [];
-let pendingNarrationMessage = null;
-let narrationChannel = null;
+const allowedGuildIds = new Set(config.guildIds);
+const allowedChannelIds = new Set(config.channelIds);
+const allowedThreadIds = new Set(config.threadIds);
+const pendingBatches = new Map();
 
 function cleanMessageText(message) {
   return (
@@ -56,61 +56,6 @@ async function sendMessageChunks(channel, content) {
   for (const chunk of splitDiscordMessage(content)) {
     await channel.send(chunk);
   }
-}
-
-function narrationContent(content) {
-  return content.startsWith("（") ? content : `（${content}）`;
-}
-
-async function getNarrationChannel(fallbackChannel) {
-  if (!config.narrationEnabled) {
-    return null;
-  }
-
-  if (!config.narrationChannelId) {
-    return fallbackChannel?.isTextBased() ? fallbackChannel : null;
-  }
-
-  if (narrationChannel?.id === config.narrationChannelId) {
-    return narrationChannel;
-  }
-
-  narrationChannel = await client.channels.fetch(config.narrationChannelId);
-
-  return narrationChannel?.isTextBased() ? narrationChannel : null;
-}
-
-async function createNarration(fallbackChannel, content) {
-  try {
-    const channel = await getNarrationChannel(fallbackChannel);
-
-    return channel ? await channel.send(narrationContent(content)) : null;
-  } catch (error) {
-    console.warn(`[narration] failed to send status: ${error.message}`);
-    return null;
-  }
-}
-
-async function updateNarration(narrationMessage, fallbackChannel, content) {
-  if (!config.narrationEnabled) {
-    return null;
-  }
-
-  try {
-    if (narrationMessage) {
-      await narrationMessage.edit(narrationContent(content));
-      return narrationMessage;
-    }
-
-    return await createNarration(fallbackChannel, content);
-  } catch (error) {
-    console.warn(`[narration] failed to update status: ${error.message}`);
-    return;
-  }
-}
-
-function narrationSubject(user) {
-  return config.discordOwnerUserId && user.id === config.discordOwnerUserId ? "老婆的話" : "這句話";
 }
 
 function formatAuthor(user) {
@@ -166,14 +111,27 @@ async function getRecentContext(channel) {
   }
 }
 
+function isAllowedMessage(message) {
+  if (!message.guildId || !allowedGuildIds.has(message.guildId)) {
+    return false;
+  }
+
+  return allowedChannelIds.has(message.channelId) || allowedThreadIds.has(message.channelId);
+}
+
+function channelLabel(message) {
+  const name = message.channel?.name ?? message.channelId;
+
+  return message.channel?.isThread?.() && message.channel.parent?.name
+    ? `${message.channel.parent.name} / ${name}`
+    : name;
+}
+
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`[oo-bridge] logged in as ${readyClient.user.tag}`);
-  console.log(`[oo-bridge] locked to guild ${config.guildId}, channel ${config.channelId}`);
-
-  const channel = await client.channels.fetch(config.channelId);
-  console.log(`[oo-bridge] target channel: #${channel?.name ?? config.channelId}`);
-  const readyTarget = config.discordOwnerUserId ? "老婆叫我" : "有人叫我";
-  await createNarration(channel, `我把麥克風接好了，先守在測試頻道等${readyTarget}。`);
+  console.log(`[oo-bridge] allowed guilds: ${config.guildIds.join(", ")}`);
+  console.log(`[oo-bridge] allowed channels: ${config.channelIds.join(", ") || "(none)"}`);
+  console.log(`[oo-bridge] allowed threads: ${config.threadIds.join(", ") || "(none)"}`);
 });
 
 client.on(Events.MessageCreate, async (message) => {
@@ -181,7 +139,7 @@ client.on(Events.MessageCreate, async (message) => {
     return;
   }
 
-  if (message.guildId !== config.guildId || message.channelId !== config.channelId) {
+  if (!isAllowedMessage(message)) {
     return;
   }
 
@@ -189,47 +147,38 @@ client.on(Events.MessageCreate, async (message) => {
   const replyContext = await describeReply(message);
   console.log(`[discord] accepted ${message.author.tag}: ${content}`);
 
-  if (pendingMessages.length === 0) {
-    pendingNarrationMessage = await createNarration(
-      message.channel,
-      `我要接${narrationSubject(message.author)}，我正在先把剛剛這句接住。`
-    );
-  } else {
-    pendingNarrationMessage = await updateNarration(
-      pendingNarrationMessage,
-      message.channel,
-      `我要接${narrationSubject(message.author)}，我正在把連續幾句合在一起看。`
-    );
-  }
+  const batchKey = `${message.guildId}:${message.channelId}`;
+  const batch = pendingBatches.get(batchKey) ?? {
+    messages: [],
+    timer: null,
+    triggerMessage: message
+  };
 
-  pendingMessages.push({
+  batch.messages.push({
     author: message.author.tag,
     authorProfile: memberRoster.describeUser(message.author),
-    narrationSubject: narrationSubject(message.author),
-    channel: message.channel?.name ?? message.channelId,
+    channel: channelLabel(message),
     guild: message.guild?.name ?? message.guildId,
     content,
     replyContext
   });
+  batch.triggerMessage = message;
 
-  if (batchTimer) {
-    clearTimeout(batchTimer);
+  if (batch.timer) {
+    clearTimeout(batch.timer);
   }
 
-  batchTimer = setTimeout(() => {
-    const batch = pendingMessages;
-    const narrationMessage = pendingNarrationMessage;
-    pendingMessages = [];
-    pendingNarrationMessage = null;
-    batchTimer = null;
+  batch.timer = setTimeout(() => {
+    pendingBatches.delete(batchKey);
 
-    enqueueCodexBatch(message, batch, narrationMessage);
+    enqueueCodexBatch(batch.triggerMessage, batch.messages);
   }, config.discordBatchWindowMs);
+
+  pendingBatches.set(batchKey, batch);
 });
 
-function enqueueCodexBatch(message, batch, narrationMessage) {
+function enqueueCodexBatch(message, batch) {
   const first = batch[0];
-  const subject = first.narrationSubject ?? "這句話";
   const content =
     batch.length === 1
       ? [first.replyContext, first.content].filter(Boolean).join("\n")
@@ -244,22 +193,12 @@ function enqueueCodexBatch(message, batch, narrationMessage) {
   codexQueue = codexQueue
     .then(async () => {
       await message.channel.sendTyping();
-      narrationMessage = await updateNarration(
-        narrationMessage,
-        message.channel,
-        `我要接${subject}，我正在看前面幾句，確認這句在回誰、誰在跟誰說話。`
-      );
       const typing = setInterval(() => {
         message.channel.sendTyping().catch(() => {});
       }, 8_000);
 
       try {
         const recentContext = await getRecentContext(message.channel);
-        narrationMessage = await updateNarration(
-          narrationMessage,
-          message.channel,
-          `我要接${subject}，我把上下文排好了，正在回到頻道裡。`
-        );
         const response = await askCodex(config, {
           author: message.author.tag,
           authorProfile: first.authorProfile,
@@ -271,13 +210,11 @@ function enqueueCodexBatch(message, batch, narrationMessage) {
 
         await sendMessageChunks(message.channel, response);
         console.log("[codex] replied through Discord.");
-        await updateNarration(narrationMessage, message.channel, "我回完了，先回到旁邊等下一句。");
       } catch (error) {
         console.error("[codex] failed:", error.message);
         if (error.stderr) {
           console.error(error.stderr);
         }
-        await updateNarration(narrationMessage, message.channel, "這回合卡住了，我先把話放下，下一句再接。");
         await message.channel.send("我這邊叫 Codex CLI 的時候卡住了，先把這回合放掉，下一句可以繼續。");
       } finally {
         clearInterval(typing);
