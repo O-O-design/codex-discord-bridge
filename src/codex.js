@@ -80,12 +80,15 @@ function runProcess(command, args, { cwd, timeoutMs }) {
   });
 }
 
-function buildDiscordPrompt({ author, authorProfile, channel, guild, content, recentContext }) {
+function buildDiscordPrompt({ author, authorProfile, channel, guild, content, recentContext, sandbox }) {
   return [
     "你現在是被 Discord bot「歐歐」呼叫的本機 Codex CLI。",
     "Discord bot 只是聲帶；真正回覆的是這條 Codex session。",
     "請直接輸出要送回 Discord 的回覆。",
     "保持繁體中文，短、自然、像聊天。可以回應動作，不要硬梆梆，但要認真工作。",
+    sandbox === "read-only"
+      ? "這回合是 read-only：可以讀和回答，但不要聲稱已修改檔案。"
+      : `這回合 sandbox 是 ${sandbox}。`,
     "",
     `Discord 來源：${guild} / ${channel}`,
     `使用者：${author}`,
@@ -129,7 +132,7 @@ export async function seedCodexSession(config, seedPrompt) {
   }
 }
 
-export async function askCodex(config, messageContext) {
+export async function askCodex(config, messageContext, options = {}) {
   const sessionId = await readSessionId(config.codexSessionFile);
 
   if (!sessionId) {
@@ -139,10 +142,13 @@ export async function askCodex(config, messageContext) {
   const outputDir = await mkdtemp(join(tmpdir(), "oo-bridge-codex-"));
   const outputFile = join(outputDir, "last-message.txt");
   const prompt = buildDiscordPrompt(messageContext);
+  const sandbox = options.sandbox ?? config.codexSandbox;
   const args = [
     "exec",
     "resume",
     "--skip-git-repo-check",
+    "--sandbox",
+    sandbox,
     "-o",
     outputFile,
     sessionId,

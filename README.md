@@ -28,7 +28,8 @@ cp .env.example .env
 填入 Discord bot token、client id。預設白名單：
 
 - Guilds: `1438141616505229416`, `1413277238962557032`
-- Channels: `1526559984786084032`, `1507371902794989600`
+- Channels: `1526559984786084032`
+- Parent channels: `1500130334434529352`
 - Threads: `1507476386758004958`
 
 ## 啟動
@@ -54,8 +55,12 @@ npm run check
 - `DISCORD_CONTEXT_LIMIT`：每次回覆前讀取的最近頻道訊息數，預設 `10`。
 - `MEMBER_ROSTER_FILE`：私有成員清單 CSV 路徑，不進 git。
 - `DISCORD_GUILD_IDS`：允許反應的伺服器 ID，以逗號分隔。
-- `DISCORD_CHANNEL_IDS`：允許反應的頻道 ID，以逗號分隔；thread 不會因 parent 在這裡就自動放行。
+- `DISCORD_CHANNEL_IDS`：允許反應的一般頻道 ID，以逗號分隔。
+- `DISCORD_PARENT_CHANNEL_IDS`：允許其底下 thread/post 反應的 parent channel 或 forum ID，以逗號分隔。
 - `DISCORD_THREAD_IDS`：允許反應的 thread ID，以逗號分隔。
+- `DISCORD_ALLOWED_BOT_AUTHOR_IDS`：允許讀取的其他 bot 作者 ID，以逗號分隔；bridge 永遠不讀自己的訊息，避免自我回音。
+- `DISCORD_WRITE_USER_IDS`：允許使用 `CODEX_SANDBOX` 寫入權限的 Discord user ID，以逗號分隔；不在清單內的發言一律用 `read-only` 呼叫 Codex。
+- `CODEX_SANDBOX`：Codex CLI sandbox，預設 `workspace-write`，讓 Discord 端呼叫的 Codex 可以改這個工作區；只接受 `read-only`、`workspace-write`、`danger-full-access`。
 
 如果 Codex CLI 單回合卡住，bridge 會殺掉該回合並回報卡住，避免整條 Discord queue 死鎖。
 

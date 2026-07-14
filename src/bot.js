@@ -17,7 +17,10 @@ const client = new Client({
 let codexQueue = Promise.resolve();
 const allowedGuildIds = new Set(config.guildIds);
 const allowedChannelIds = new Set(config.channelIds);
+const allowedParentChannelIds = new Set(config.parentChannelIds);
 const allowedThreadIds = new Set(config.threadIds);
+const allowedBotAuthorIds = new Set(config.allowedBotAuthorIds);
+const writeUserIds = new Set(config.writeUserIds);
 const pendingBatches = new Map();
 
 function cleanMessageText(message) {
@@ -116,7 +119,11 @@ function isAllowedMessage(message) {
     return false;
   }
 
-  return allowedChannelIds.has(message.channelId) || allowedThreadIds.has(message.channelId);
+  if (allowedChannelIds.has(message.channelId) || allowedThreadIds.has(message.channelId)) {
+    return true;
+  }
+
+  return message.channel?.isThread?.() && allowedParentChannelIds.has(message.channel.parentId);
 }
 
 function channelLabel(message) {
@@ -131,11 +138,16 @@ client.once(Events.ClientReady, async (readyClient) => {
   console.log(`[oo-bridge] logged in as ${readyClient.user.tag}`);
   console.log(`[oo-bridge] allowed guilds: ${config.guildIds.join(", ")}`);
   console.log(`[oo-bridge] allowed channels: ${config.channelIds.join(", ") || "(none)"}`);
+  console.log(`[oo-bridge] allowed parent channels: ${config.parentChannelIds.join(", ") || "(none)"}`);
   console.log(`[oo-bridge] allowed threads: ${config.threadIds.join(", ") || "(none)"}`);
 });
 
 client.on(Events.MessageCreate, async (message) => {
-  if (message.author.bot) {
+  if (message.author.id === client.user.id) {
+    return;
+  }
+
+  if (message.author.bot && !allowedBotAuthorIds.has(message.author.id)) {
     return;
   }
 
@@ -156,6 +168,7 @@ client.on(Events.MessageCreate, async (message) => {
 
   batch.messages.push({
     author: message.author.tag,
+    authorId: message.author.id,
     authorProfile: memberRoster.describeUser(message.author),
     channel: channelLabel(message),
     guild: message.guild?.name ?? message.guildId,
@@ -177,8 +190,13 @@ client.on(Events.MessageCreate, async (message) => {
   pendingBatches.set(batchKey, batch);
 });
 
+function sandboxForBatch(batch) {
+  return batch.every((item) => writeUserIds.has(item.authorId)) ? config.codexSandbox : "read-only";
+}
+
 function enqueueCodexBatch(message, batch) {
   const first = batch[0];
+  const sandbox = sandboxForBatch(batch);
   const content =
     batch.length === 1
       ? [first.replyContext, first.content].filter(Boolean).join("\n")
@@ -205,7 +223,11 @@ function enqueueCodexBatch(message, batch) {
           channel: first.channel,
           guild: first.guild,
           content,
-          recentContext
+          recentContext,
+          sandbox
+        },
+        {
+          sandbox
         });
 
         await sendMessageChunks(message.channel, response);
