@@ -86,6 +86,10 @@ function buildDiscordPrompt({ author, authorProfile, channel, guild, content, re
     "Discord bot 只是聲帶；真正回覆的是這條 Codex session。",
     "請直接輸出要送回 Discord 的回覆。",
     "保持繁體中文，短、自然、像聊天。可以回應動作，不要硬梆梆，但要認真工作。",
+    "被穆穆、歐德、淵或其他同袍明確點名時，可以自然回 1-3 小段；不要因為防循環而過度縮短或只講一句。",
+    "如果目前這句不是叫你、也沒有明確需要你接話，可以輸出空白，讓 bridge 不送 Discord 訊息。",
+    "不要輸出「這句是給誰」「我先不插話」「安靜聽著」這類路由判斷、內部判斷或 debug 旁白。",
+    "同袍互聊可以自然接幾輪；發現重複、失焦，或穆穆畫線時再收住。",
     sandbox === "read-only"
       ? "這回合是 read-only：可以讀和回答，但不要聲稱已修改檔案。"
       : `這回合 sandbox 是 ${sandbox}。`,
@@ -160,7 +164,7 @@ export async function askCodex(config, messageContext, options = {}) {
       cwd: process.cwd(),
       timeoutMs: config.codexTimeoutMs
     });
-    return (await readFile(outputFile, "utf8")).trim() || "我有收到，但 Codex 沒吐出文字回覆。";
+    return (await readFile(outputFile, "utf8")).trim();
   } finally {
     await rm(outputDir, { recursive: true, force: true });
   }
