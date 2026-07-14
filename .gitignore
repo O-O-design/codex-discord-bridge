@@ -4,5 +4,6 @@ state/*
 !state/.gitkeep
 *.csv
 private/
+logs/
 .DS_Store
 npm-debug.log*
