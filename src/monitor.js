@@ -125,7 +125,7 @@ function htmlPage() {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>oo-bridge monitor</title>
+  <title>歐歐橋接監控</title>
   <style>
     :root {
       color-scheme: light;
@@ -282,7 +282,6 @@ function htmlPage() {
       color: var(--info);
       font-size: 12px;
       font-weight: 700;
-      text-transform: uppercase;
     }
 
     .event.codex_success,
@@ -346,38 +345,38 @@ function htmlPage() {
   <main>
     <header>
       <div>
-        <h1>oo-bridge monitor</h1>
+        <h1>歐歐橋接監控</h1>
         <div class="sub">${logFile}</div>
       </div>
-      <div id="connection" class="pill">connecting</div>
+      <div id="connection" class="pill">連線中</div>
     </header>
 
     <section class="grid">
       <div class="card">
-        <div class="label">Bridge</div>
-        <div id="bridge-status" class="value small">waiting</div>
+        <div class="label">橋接狀態</div>
+        <div id="bridge-status" class="value small">等待中</div>
       </div>
       <div class="card">
-        <div class="label">Queue</div>
+        <div class="label">排隊任務</div>
         <div id="queue-count" class="value">0</div>
       </div>
       <div class="card">
-        <div class="label">Active Job</div>
-        <div id="active-job" class="value small">none</div>
+        <div class="label">正在處理</div>
+        <div id="active-job" class="value small">無</div>
       </div>
       <div class="card">
-        <div class="label">Last Result</div>
-        <div id="last-result" class="value small">none</div>
+        <div class="label">最近結果</div>
+        <div id="last-result" class="value small">無</div>
       </div>
     </section>
 
     <section class="layout">
       <div class="panel">
-        <h2>Jobs</h2>
+        <h2>任務</h2>
         <div id="jobs" class="list"></div>
       </div>
       <div class="panel">
-        <h2>Events</h2>
+        <h2>事件</h2>
         <div id="events" class="list"></div>
       </div>
     </section>
@@ -386,12 +385,28 @@ function htmlPage() {
   <script>
     const entries = [];
     const jobs = new Map();
+    const EVENT_LABELS = {
+      bridge_log_started: '橋接 log 已就緒',
+      bridge_ready: '橋接已上線',
+      codex_queued: 'Codex 已排隊',
+      codex_start: 'Codex 開始處理',
+      codex_success: 'Codex 完成',
+      codex_failed: 'Codex 失敗',
+      discord_client_error: 'Discord 連線錯誤',
+      monitor_parse_failed: '監控解析失敗'
+    };
+    const JOB_STATUS_LABELS = {
+      queued: '排隊中',
+      running: '處理中',
+      done: '完成',
+      failed: '失敗'
+    };
     const state = {
       connected: false,
-      bridgeStatus: 'waiting',
+      bridgeStatus: '等待中',
       queueCount: 0,
       activeJobId: null,
-      lastResult: 'none'
+      lastResult: '無'
     };
 
     const connectionEl = document.getElementById('connection');
@@ -441,6 +456,14 @@ function htmlPage() {
       return (ms / 1000).toFixed(1) + 's';
     }
 
+    function formatEventName(eventName) {
+      return EVENT_LABELS[eventName] || eventName || '未知事件';
+    }
+
+    function formatJobStatus(status) {
+      return JOB_STATUS_LABELS[status] || status || '未知';
+    }
+
     function applyEntry(entry) {
       entries.unshift(entry);
       if (entries.length > 120) {
@@ -452,11 +475,11 @@ function htmlPage() {
       }
 
       if (entry.event === 'bridge_ready') {
-        state.bridgeStatus = entry.botTag || 'online';
+        state.bridgeStatus = entry.botTag || '已上線';
       }
 
       if (entry.event === 'bridge_log_started') {
-        state.bridgeStatus = 'log ready';
+        state.bridgeStatus = 'log 已就緒';
       }
 
       if (entry.event === 'codex_queued' && entry.jobId) {
@@ -500,16 +523,16 @@ function htmlPage() {
         if (state.activeJobId === entry.jobId) {
           state.activeJobId = null;
         }
-        state.lastResult = failed ? 'failed: ' + (entry.error || entry.jobId) : 'ok: ' + formatDuration(entry.durationMs);
+        state.lastResult = failed ? '失敗：' + (entry.error || entry.jobId) : '完成：' + formatDuration(entry.durationMs);
       }
     }
 
     function render() {
-      connectionEl.textContent = state.connected ? 'live' : 'reconnecting';
+      connectionEl.textContent = state.connected ? '即時連線' : '重新連線中';
       connectionEl.className = state.connected ? 'pill live' : 'pill';
       bridgeStatusEl.textContent = state.bridgeStatus;
       queueCountEl.textContent = String(state.queueCount);
-      activeJobEl.textContent = state.activeJobId || 'none';
+      activeJobEl.textContent = state.activeJobId || '無';
       lastResultEl.textContent = state.lastResult;
 
       renderJobs();
@@ -524,7 +547,7 @@ function htmlPage() {
       }).slice(0, 30);
 
       if (sortedJobs.length === 0) {
-        jobsEl.innerHTML = '<div class="empty">還沒有 Codex job。</div>';
+        jobsEl.innerHTML = '<div class="empty">還沒有 Codex 任務。</div>';
         return;
       }
 
@@ -532,14 +555,14 @@ function htmlPage() {
         const duration = formatDuration(job.durationMs);
         const meta = [
           job.channel,
-          job.batchSize ? 'batch ' + job.batchSize : '',
+          job.batchSize ? '批次 ' + job.batchSize : '',
           job.sandbox,
           duration
         ].filter(Boolean).join(' · ');
 
         return '<div class="item">' +
           '<div class="row">' +
-            '<div class="event codex_' + escapeHtml(job.status) + '">' + escapeHtml(job.status) + '</div>' +
+            '<div class="event codex_' + escapeHtml(job.status) + '">' + escapeHtml(formatJobStatus(job.status)) + '</div>' +
             '<div class="time">' + escapeHtml(eventTime(job.finishedTs || job.startedTs || job.ts)) + '</div>' +
           '</div>' +
           '<div class="summary">' + escapeHtml(job.summary || job.id) + '</div>' +
@@ -550,7 +573,7 @@ function htmlPage() {
 
     function renderEvents() {
       if (entries.length === 0) {
-        eventsEl.innerHTML = '<div class="empty">等待 bridge log。</div>';
+        eventsEl.innerHTML = '<div class="empty">等待橋接 log。</div>';
         return;
       }
 
@@ -563,7 +586,7 @@ function htmlPage() {
 
         return '<div class="item">' +
           '<div class="row">' +
-            '<div class="event ' + escapeHtml(entry.event) + '">' + escapeHtml(entry.event) + '</div>' +
+            '<div class="event ' + escapeHtml(entry.event) + '">' + escapeHtml(formatEventName(entry.event)) + '</div>' +
             '<div class="time">' + escapeHtml(eventTime(entry.ts)) + '</div>' +
           '</div>' +
           '<div class="summary">' + escapeHtml(entry.summary || JSON.stringify(entry)) + '</div>' +
@@ -577,7 +600,7 @@ function htmlPage() {
       jobs.clear();
       state.queueCount = 0;
       state.activeJobId = null;
-      state.lastResult = 'none';
+      state.lastResult = '無';
       for (const entry of snapshot) {
         applyEntry(entry);
       }
