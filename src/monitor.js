@@ -205,7 +205,7 @@ function htmlPage() {
 
     .grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 12px;
       margin-bottom: 12px;
     }
@@ -483,6 +483,10 @@ function htmlPage() {
         <div class="label">最近結果</div>
         <div id="last-result" class="value small">無</div>
       </div>
+      <div class="card">
+        <div class="label">預估完成</div>
+        <div id="eta" class="value small">無待處理</div>
+      </div>
     </section>
 
     <section class="panel message-panel">
@@ -566,6 +570,7 @@ function htmlPage() {
     const queueCountEl = document.getElementById('queue-count');
     const activeJobEl = document.getElementById('active-job');
     const lastResultEl = document.getElementById('last-result');
+    const etaEl = document.getElementById('eta');
     const messagesEl = document.getElementById('messages');
     const jobsEl = document.getElementById('jobs');
     const eventsEl = document.getElementById('events');
@@ -609,6 +614,27 @@ function htmlPage() {
       return (ms / 1000).toFixed(1) + 's';
     }
 
+    function formatHumanDuration(ms) {
+      if (!Number.isFinite(ms)) {
+        return '';
+      }
+
+      const totalSeconds = Math.max(0, Math.round(ms / 1000));
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      if (hours > 0) {
+        return minutes > 0 ? hours + ' 小時 ' + minutes + ' 分' : hours + ' 小時';
+      }
+
+      if (minutes > 0) {
+        return seconds > 0 ? minutes + ' 分 ' + seconds + ' 秒' : minutes + ' 分';
+      }
+
+      return seconds + ' 秒';
+    }
+
     function formatEventName(eventName) {
       return EVENT_LABELS[eventName] || eventName || '未知事件';
     }
@@ -636,6 +662,104 @@ function htmlPage() {
         entry.sandbox,
         Number.isFinite(entry.durationMs) ? formatDuration(entry.durationMs) : ''
       ].filter(Boolean).join(' · ');
+    }
+
+    function averageCompletedDuration() {
+      const durations = [...jobs.values()]
+        .filter((job) => job.status === 'done' && Number.isFinite(job.durationMs))
+        .sort((a, b) => new Date(b.finishedTs || 0).getTime() - new Date(a.finishedTs || 0).getTime())
+        .slice(0, 8)
+        .map((job) => job.durationMs);
+
+      if (durations.length === 0) {
+        return null;
+      }
+
+      return durations.reduce((sum, duration) => sum + duration, 0) / durations.length;
+    }
+
+    function estimateCompletionText() {
+      const hasActive = Boolean(state.activeJobId);
+      const queuedCount = Math.max(state.queueCount, 0);
+
+      if (!hasActive && queuedCount === 0) {
+        return '無待處理';
+      }
+
+      const averageMs = averageCompletedDuration();
+      if (!Number.isFinite(averageMs)) {
+        return '累積資料中';
+      }
+
+      let remainingMs = queuedCount * averageMs;
+      const activeJob = hasActive ? jobs.get(state.activeJobId) : null;
+
+      if (hasActive) {
+        const startedAt = new Date(activeJob?.startedTs || 0).getTime();
+        const elapsedMs = Number.isFinite(startedAt) && startedAt > 0 ? Date.now() - startedAt : 0;
+        remainingMs += Math.max(averageMs - elapsedMs, averageMs * 0.15);
+      }
+
+      return '約 ' + eventTime(Date.now() + remainingMs) + '（剩 ' + formatHumanDuration(remainingMs) + '）';
+    }
+
+    function formatEntrySummary(entry) {
+      switch (entry.event) {
+        case 'bridge_log_started':
+          return entry.summary
+            ? entry.summary.replace('runtime log writing to ', 'runtime log 寫入：')
+            : 'runtime log 已開始寫入。';
+        case 'bridge_ready':
+          return '橋接已登入 Discord：' + (entry.botTag || entry.summary || '未知帳號');
+        case 'message_blocked':
+          return '已略過黑名單位置：' + (entry.channel || entry.channelId || '未知位置');
+        case 'bot_loop_limited':
+          return 'AI 互聊煞車：已略過 ' + (entry.author || entry.authorId || '白名單 bot') +
+            '，連續 ' + (entry.turnCount ?? '?') + ' 回合，冷卻 ' +
+            formatHumanDuration(entry.cooldownRemainingMs || 0);
+        case 'message_accepted':
+          return (entry.author || '使用者') + ' 在 ' + (entry.channel || '允許位置') + '：' +
+            (entry.content || entry.summary || '');
+        case 'codex_queued':
+          return 'Codex 任務已排隊：' + (entry.jobId || '未知任務') + '，' +
+            (entry.batchSize || 1) + ' 則訊息。';
+        case 'codex_start':
+          return 'Codex 開始處理：' + (entry.jobId || '未知任務') + '，權限 ' +
+            (entry.sandbox || '未知') + '。';
+        case 'context_read_start':
+          return '讀取可選上下文：最多 ' + (entry.contextLimit || '?') + ' 則。';
+        case 'context_read':
+          return '可選上下文已讀取：' + (entry.count || 0) + ' 則。';
+        case 'context_read_failed':
+          return '可選上下文讀取失敗：' + (entry.error || entry.summary || '未知錯誤');
+        case 'codex_cli_start':
+          return '正在呼叫 Codex CLI：' + (entry.jobId || '未知任務') + '。';
+        case 'codex_success':
+          return 'Codex 任務完成：' + (entry.jobId || '未知任務') + '，回覆 ' +
+            (entry.responseLength || 0) + ' 字，耗時 ' + formatHumanDuration(entry.durationMs) + '。';
+        case 'codex_failed':
+          return 'Codex 任務失敗：' + (entry.jobId || '未知任務') + '，' +
+            (entry.error || entry.summary || '未知錯誤');
+        case 'discord_client_error':
+          return 'Discord client 錯誤：' + (entry.error || entry.summary || '未知錯誤');
+        case 'bridge_shutdown':
+          return '橋接關閉：' + (entry.signal || entry.summary || '未知訊號');
+        default:
+          return entry.summary || JSON.stringify(entry);
+      }
+    }
+
+    function formatJobSummary(job) {
+      if (job.status === 'done') {
+        return '任務完成：' + job.id + '，回覆 ' + (job.responseLength || 0) + ' 字。';
+      }
+
+      if (job.status === 'failed') {
+        return '任務失敗：' + job.id + '，' + (job.error || job.summary || '未知錯誤');
+      }
+
+      return '任務' + formatJobStatus(job.status) + '：' + job.id + '，' +
+        (job.batchSize || 1) + ' 則訊息。';
     }
 
     function upsertMessageStatus(message, status, entry) {
@@ -683,12 +807,12 @@ function htmlPage() {
 
       if (entry.event === 'bridge_ready') {
         state.bridgeStatus = entry.botTag || '已上線';
-        setWork('idle', '橋接待命中', entry.summary || '橋接已登入 Discord。', entryDetail(entry), 'ok');
+        setWork('idle', '橋接待命中', formatEntrySummary(entry), entryDetail(entry), 'ok');
       }
 
       if (entry.event === 'bridge_log_started') {
         state.bridgeStatus = 'log 已就緒';
-        setWork('idle', '監控已啟動', entry.summary || 'runtime log 已開始寫入。', entryDetail(entry), 'ok');
+        setWork('idle', '監控已啟動', formatEntrySummary(entry), entryDetail(entry), 'ok');
       }
 
       if (entry.event === 'message_accepted') {
@@ -700,7 +824,7 @@ function htmlPage() {
         setWork(
           'received',
           '收到 Discord 訊息',
-          entry.content || entry.summary || '已收到一則允許位置的訊息。',
+          entry.content || formatEntrySummary(entry),
           entryDetail(entry),
           'info'
         );
@@ -717,7 +841,7 @@ function htmlPage() {
           sandbox: entry.sandbox
         });
         upsertMessagesFromEntry(entry, 'queued');
-        setWork('received', '任務已排隊', entry.summary, entryDetail(entry), 'warn');
+        setWork('received', '任務已排隊', formatEntrySummary(entry), entryDetail(entry), 'warn');
       }
 
       if (entry.event === 'codex_start' && entry.jobId) {
@@ -733,29 +857,29 @@ function htmlPage() {
         });
         state.activeJobId = entry.jobId;
         upsertMessagesFromEntry(entry, 'running');
-        setWork('context', '開始處理任務', entry.summary, entryDetail(entry), 'warn');
+        setWork('context', '開始處理任務', formatEntrySummary(entry), entryDetail(entry), 'warn');
       }
 
       if (entry.event === 'context_read_start') {
         upsertMessagesFromEntry(entry, 'context');
-        setWork('context', '讀取可選上下文', entry.summary, entryDetail(entry), 'warn');
+        setWork('context', '讀取可選上下文', formatEntrySummary(entry), entryDetail(entry), 'warn');
       }
 
       if (entry.event === 'context_read') {
-        setWork('context', '可選上下文已整理', entry.summary, entryDetail(entry), 'info');
+        setWork('context', '可選上下文已整理', formatEntrySummary(entry), entryDetail(entry), 'info');
       }
 
       if (entry.event === 'context_read_failed') {
-        setWork('context', '可選上下文讀取失敗', entry.summary, entryDetail(entry), 'bad');
+        setWork('context', '可選上下文讀取失敗', formatEntrySummary(entry), entryDetail(entry), 'bad');
       }
 
       if (entry.event === 'bot_loop_limited') {
-        setWork('idle', 'AI 互聊煞車已啟動', entry.summary, entryDetail(entry), 'warn');
+        setWork('idle', 'AI 互聊煞車已啟動', formatEntrySummary(entry), entryDetail(entry), 'warn');
       }
 
       if (entry.event === 'codex_cli_start') {
         upsertMessagesFromEntry(entry, 'codex');
-        setWork('codex', '交給 Codex CLI', entry.summary, entryDetail(entry), 'warn');
+        setWork('codex', '交給 Codex CLI', formatEntrySummary(entry), entryDetail(entry), 'warn');
       }
 
       if ((entry.event === 'codex_success' || entry.event === 'codex_failed') && entry.jobId) {
@@ -778,14 +902,14 @@ function htmlPage() {
         setWork(
           failed ? 'failed' : 'done',
           failed ? '任務卡住或失敗' : '已回覆 Discord',
-          failed ? (entry.error || entry.summary) : (entry.response || entry.summary),
+          failed ? formatEntrySummary(entry) : (entry.response || formatEntrySummary(entry)),
           entryDetail(entry),
           failed ? 'bad' : 'ok'
         );
       }
 
       if (entry.event === 'discord_client_error') {
-        setWork('failed', 'Discord 連線錯誤', entry.summary, entryDetail(entry), 'bad');
+        setWork('failed', 'Discord 連線錯誤', formatEntrySummary(entry), entryDetail(entry), 'bad');
       }
     }
 
@@ -806,6 +930,7 @@ function htmlPage() {
       queueCountEl.textContent = String(state.queueCount);
       activeJobEl.textContent = state.activeJobId || '無';
       lastResultEl.textContent = state.lastResult;
+      etaEl.textContent = estimateCompletionText();
 
       renderWorkSteps();
       renderMessages();
@@ -887,7 +1012,7 @@ function htmlPage() {
             '<div class="event codex_' + escapeHtml(job.status) + '">' + escapeHtml(formatJobStatus(job.status)) + '</div>' +
             '<div class="time">' + escapeHtml(eventTime(job.finishedTs || job.startedTs || job.ts)) + '</div>' +
           '</div>' +
-          '<div class="summary">' + escapeHtml(job.summary || job.id) + '</div>' +
+          '<div class="summary">' + escapeHtml(formatJobSummary(job)) + '</div>' +
           '<div class="meta">' + escapeHtml(meta || job.id) + '</div>' +
         '</div>';
       }).join('');
@@ -911,7 +1036,7 @@ function htmlPage() {
             '<div class="event ' + escapeHtml(entry.event) + '">' + escapeHtml(formatEventName(entry.event)) + '</div>' +
             '<div class="time">' + escapeHtml(eventTime(entry.ts)) + '</div>' +
           '</div>' +
-          '<div class="summary">' + escapeHtml(entry.summary || JSON.stringify(entry)) + '</div>' +
+          '<div class="summary">' + escapeHtml(formatEntrySummary(entry)) + '</div>' +
           '<div class="meta">' + escapeHtml(meta) + '</div>' +
         '</div>';
       }).join('');

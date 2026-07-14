@@ -117,7 +117,7 @@ async function getRecentContext(channel) {
 
     const context = contextLines.join("\n");
     await appendRuntimeLog("context_read", {
-      summary: `read ${contextLines.length} optional context message(s) from ${channel.name ?? channel.id}`,
+      summary: `已讀取 ${contextLines.length} 則可選上下文：${channel.name ?? channel.id}`,
       channelId: channel.id,
       channel: channel.name ?? null,
       count: contextLines.length
@@ -127,7 +127,7 @@ async function getRecentContext(channel) {
   } catch (error) {
     console.warn(`[discord] failed to fetch optional context: ${error.message}`);
     await appendRuntimeLog("context_read_failed", {
-      summary: `failed to read optional context: ${error.message}`,
+      summary: `可選上下文讀取失敗：${error.message}`,
       channelId: channel.id,
       channel: channel.name ?? null,
       error: error.message
@@ -243,7 +243,7 @@ client.once(Events.ClientReady, async (readyClient) => {
   console.log(`[oo-bridge] blocked channels: ${config.blockedChannelIds.join(", ") || "(none)"}`);
   console.log(`[oo-bridge] blocked parent channels: ${config.blockedParentChannelIds.join(", ") || "(none)"}`);
   await appendRuntimeLog("bridge_ready", {
-    summary: `logged in as ${readyClient.user.tag}`,
+    summary: `已登入 Discord：${readyClient.user.tag}`,
     botUserId: readyClient.user.id,
     botTag: readyClient.user.tag,
     allowedGuildIds: config.guildIds,
@@ -263,7 +263,7 @@ client.on(Events.MessageCreate, async (message) => {
   const reason = blockedReason(message);
   if (reason) {
     await appendRuntimeLog("message_blocked", {
-      summary: `ignored blacklisted location ${channelLabel(message)}`,
+      summary: `已略過黑名單位置：${channelLabel(message)}`,
       reason,
       messageId: message.id,
       guildId: message.guildId,
@@ -288,7 +288,7 @@ client.on(Events.MessageCreate, async (message) => {
   const botLoop = checkBotLoopGuard(message);
   if (!botLoop.allowed) {
     await appendRuntimeLog("bot_loop_limited", {
-      summary: `AI bot conversation guard skipped ${message.author.tag} in ${channelLabel(message)} after ${botLoop.turnCount} turn(s)`,
+      summary: `AI 互聊煞車：已略過 ${message.author.tag} 在 ${channelLabel(message)} 的訊息，連續 ${botLoop.turnCount} 回合`,
       reason: botLoop.reason,
       messageId: message.id,
       guildId: message.guildId,
@@ -311,7 +311,7 @@ client.on(Events.MessageCreate, async (message) => {
   const replyContext = await describeReply(message);
   console.log(`[discord] accepted ${message.author.tag}: ${content}`);
   await appendRuntimeLog("message_accepted", {
-    summary: `${message.author.tag} in ${channelLabel(message)}: ${limitText(content)}`,
+    summary: `${message.author.tag} 在 ${channelLabel(message)}：${limitText(content)}`,
     messageId: message.id,
     guildId: message.guildId,
     guild: message.guild?.name ?? null,
@@ -378,7 +378,7 @@ function enqueueCodexBatch(message, batch) {
 
   queuedJobCount += 1;
   appendRuntimeLog("codex_queued", {
-    summary: `queued Codex job ${jobId} for ${batch.length} message(s) in ${first.channel}`,
+    summary: `Codex 任務已排隊：${jobId}，${batch.length} 則訊息，位置 ${first.channel}`,
     jobId,
     guild: first.guild,
     channel: first.channel,
@@ -406,7 +406,7 @@ function enqueueCodexBatch(message, batch) {
       queuedJobCount = Math.max(queuedJobCount - 1, 0);
       await message.channel.sendTyping();
       await appendRuntimeLog("codex_start", {
-        summary: `started Codex job ${jobId} for ${batch.length} message(s) in ${first.channel} with ${sandbox}`,
+        summary: `Codex 開始處理：${jobId}，${batch.length} 則訊息，權限 ${sandbox}`,
         jobId,
         guild: first.guild,
         channel: first.channel,
@@ -434,7 +434,7 @@ function enqueueCodexBatch(message, batch) {
         let recentContext = "";
         if (config.discordContextLimit > 0) {
           await appendRuntimeLog("context_read_start", {
-            summary: `reading optional context for Codex job ${jobId} in ${first.channel}`,
+            summary: `讀取可選上下文：${jobId}，最多 ${config.discordContextLimit} 則`,
             jobId,
             guild: first.guild,
             channel: first.channel,
@@ -453,7 +453,7 @@ function enqueueCodexBatch(message, batch) {
           recentContext = await getRecentContext(message.channel);
         }
         await appendRuntimeLog("codex_cli_start", {
-          summary: `calling Codex CLI for job ${jobId} in ${first.channel}`,
+          summary: `呼叫 Codex CLI：${jobId}，位置 ${first.channel}`,
           jobId,
           guild: first.guild,
           channel: first.channel,
@@ -486,7 +486,7 @@ function enqueueCodexBatch(message, batch) {
         await sendMessageChunks(message.channel, response);
         console.log("[codex] replied through Discord.");
         await appendRuntimeLog("codex_success", {
-          summary: `finished Codex job ${jobId} in ${first.channel}; ${response.length} chars`,
+          summary: `Codex 任務完成：${jobId}，回覆 ${response.length} 字`,
           jobId,
           guild: first.guild,
           channel: first.channel,
@@ -509,7 +509,7 @@ function enqueueCodexBatch(message, batch) {
           console.error(limitText(error.stderr, 2_000));
         }
         await appendRuntimeLog("codex_failed", {
-          summary: `Codex job ${jobId} failed in ${first.channel}: ${error.message}`,
+          summary: `Codex 任務失敗：${jobId}，${error.message}`,
           jobId,
           guild: first.guild,
           channel: first.channel,
@@ -543,7 +543,7 @@ function enqueueCodexBatch(message, batch) {
 client.on(Events.Error, (error) => {
   console.error("[discord] client error:", error);
   appendRuntimeLog("discord_client_error", {
-    summary: `Discord client error: ${error.message}`,
+    summary: `Discord client 錯誤：${error.message}`,
     error: error.message
   }).catch(() => {});
 });
@@ -551,7 +551,7 @@ client.on(Events.Error, (error) => {
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, async () => {
     await appendRuntimeLog("bridge_shutdown", {
-      summary: `received ${signal}`,
+      summary: `收到關閉訊號：${signal}`,
       signal
     });
     client.destroy();

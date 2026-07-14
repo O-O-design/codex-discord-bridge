@@ -10,7 +10,7 @@ export async function initRuntimeLog(config) {
 
   await mkdir(dirname(logFile), { recursive: true });
   await appendRuntimeLog("bridge_log_started", {
-    summary: `runtime log writing to ${logFile}`
+    summary: `runtime log 寫入：${logFile}`
   });
 }
 
