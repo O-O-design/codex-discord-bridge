@@ -74,6 +74,7 @@ export function getConfig({ requireDiscord = true } = {}) {
     discordContextLimit: intEnv("DISCORD_CONTEXT_LIMIT", 50),
     bridgeLogFile: process.env.BRIDGE_LOG_FILE?.trim() || "logs/bridge.ndjson",
     bridgeLogMessageLimit: intEnv("BRIDGE_LOG_MESSAGE_LIMIT", 800),
+    monitorPort: intEnv("MONITOR_PORT", 3899),
     memberRosterFile: memberRosterFile ? resolve(process.cwd(), memberRosterFile) : null,
     allowedBotAuthorIds: listEnv("DISCORD_ALLOWED_BOT_AUTHOR_IDS"),
     writeUserIds: listEnv("DISCORD_WRITE_USER_IDS")

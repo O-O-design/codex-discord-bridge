@@ -65,6 +65,23 @@ tmux session 會讀取本機 `.env`，stdout 寫到 `logs/bridge.out`，stderr �
 npm run check
 ```
 
+## 本機監控視窗
+
+如果不想直接看終端機或 raw log，可以另外開一個本機監控頁：
+
+```sh
+npm run monitor
+```
+
+預設網址是 `http://127.0.0.1:3899`。它會讀取 `BRIDGE_LOG_FILE`，即時顯示 bridge 事件、Codex job、queue 數、執行時間與錯誤狀態。這不是 Codex 原生即時思考視窗，而是 bridge 的後台狀態視窗。
+
+也可以用 tmux 常駐：
+
+```sh
+scripts/start-monitor-tmux.sh
+scripts/stop-monitor-tmux.sh
+```
+
 ## 對話節流
 
 - `DISCORD_BATCH_WINDOW_MS`：連續訊息合併視窗，預設 `1500`。
@@ -72,6 +89,7 @@ npm run check
 - `DISCORD_CONTEXT_LIMIT`：每次回覆前讀取的最近頻道訊息數，預設 `50`。
 - `BRIDGE_LOG_FILE`：本機 runtime log 檔，預設 `logs/bridge.ndjson`，不發到 Discord、不進 git。
 - `BRIDGE_LOG_MESSAGE_LIMIT`：每筆 log 裡訊息與回覆摘要的最大字數，預設 `800`。
+- `MONITOR_PORT`：本機監控頁 port，預設 `3899`。
 - `MEMBER_ROSTER_FILE`：私有成員清單 CSV 路徑，不進 git。
 - `DISCORD_GUILD_IDS`：允許反應的伺服器 ID，以逗號分隔。
 - `DISCORD_CHANNEL_IDS`：允許反應的一般頻道 ID，以逗號分隔。
@@ -87,6 +105,8 @@ npm run check
 
 Runtime log 會記錄實際後台事件：bridge 啟動、收到允許位置的訊息、讀取最近上下文、呼叫 Codex、回覆成功或錯誤。它是本機排錯與查看狀態用，不是 Discord 旁白，也不顯示模型私密推理。
 黑名單位置只會記錄 `message_blocked` 與位置資訊，不會記錄訊息文字。
+
+監控頁只讀 runtime log，並以較親和的方式呈現「收到、排隊、執行中、完成、timeout / failed」等橋接狀態；不會修改 Discord 或 Codex session。
 
 讀取最近訊息需要 bot 在目標頻道具備讀取訊息歷史與訊息內容權限；如果抓取失敗，bridge 會降級成只回覆當前批次。
 

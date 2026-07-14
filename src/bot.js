@@ -17,6 +17,9 @@ const client = new Client({
 });
 
 let codexQueue = Promise.resolve();
+let nextJobNumber = 0;
+let queuedJobCount = 0;
+let activeJobId = null;
 const allowedGuildIds = new Set(config.guildIds);
 const allowedChannelIds = new Set(config.channelIds);
 const allowedParentChannelIds = new Set(config.parentChannelIds);
@@ -271,6 +274,7 @@ function sandboxForBatch(batch) {
 function enqueueCodexBatch(message, batch) {
   const first = batch[0];
   const sandbox = sandboxForBatch(batch);
+  const jobId = `codex-${Date.now().toString(36)}-${(++nextJobNumber).toString(36)}`;
   const content =
     batch.length === 1
       ? [first.replyContext, first.content].filter(Boolean).join("\n")
@@ -282,16 +286,39 @@ function enqueueCodexBatch(message, batch) {
           )
         ].join("\n");
 
+  queuedJobCount += 1;
+  appendRuntimeLog("codex_queued", {
+    summary: `queued Codex job ${jobId} for ${batch.length} message(s) in ${first.channel}`,
+    jobId,
+    guild: first.guild,
+    channel: first.channel,
+    channelId: message.channelId,
+    batchSize: batch.length,
+    sandbox,
+    queuedJobCount,
+    activeJobId,
+    authors: batch.map((item) => ({
+      author: item.author,
+      authorId: item.authorId
+    }))
+  }).catch(() => {});
+
   codexQueue = codexQueue
     .then(async () => {
+      const startedAt = Date.now();
+      activeJobId = jobId;
+      queuedJobCount = Math.max(queuedJobCount - 1, 0);
       await message.channel.sendTyping();
       await appendRuntimeLog("codex_start", {
-        summary: `calling Codex for ${batch.length} message(s) in ${first.channel} with ${sandbox}`,
+        summary: `started Codex job ${jobId} for ${batch.length} message(s) in ${first.channel} with ${sandbox}`,
+        jobId,
         guild: first.guild,
         channel: first.channel,
         channelId: message.channelId,
         batchSize: batch.length,
         sandbox,
+        queuedJobCount,
+        activeJobId,
         authors: batch.map((item) => ({
           author: item.author,
           authorId: item.authorId
@@ -319,11 +346,14 @@ function enqueueCodexBatch(message, batch) {
         await sendMessageChunks(message.channel, response);
         console.log("[codex] replied through Discord.");
         await appendRuntimeLog("codex_success", {
-          summary: `replied in ${first.channel}; ${response.length} chars`,
+          summary: `finished Codex job ${jobId} in ${first.channel}; ${response.length} chars`,
+          jobId,
           guild: first.guild,
           channel: first.channel,
           channelId: message.channelId,
           sandbox,
+          durationMs: Date.now() - startedAt,
+          queuedJobCount,
           responseLength: response.length,
           response: limitText(response)
         });
@@ -333,17 +363,23 @@ function enqueueCodexBatch(message, batch) {
           console.error(limitText(error.stderr, 2_000));
         }
         await appendRuntimeLog("codex_failed", {
-          summary: `Codex failed in ${first.channel}: ${error.message}`,
+          summary: `Codex job ${jobId} failed in ${first.channel}: ${error.message}`,
+          jobId,
           guild: first.guild,
           channel: first.channel,
           channelId: message.channelId,
           sandbox,
+          durationMs: Date.now() - startedAt,
+          queuedJobCount,
           error: error.message,
           stderr: limitText(error.stderr),
           stdout: limitText(error.stdout)
         });
         await message.channel.send("我這邊叫 Codex CLI 的時候卡住了，先把這回合放掉，下一句可以繼續。");
       } finally {
+        if (activeJobId === jobId) {
+          activeJobId = null;
+        }
         clearInterval(typing);
       }
     })
