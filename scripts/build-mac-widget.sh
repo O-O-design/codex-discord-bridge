@@ -6,10 +6,12 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 APP="$ROOT/dist/Codex Discord Bridge Widget.app"
 CONTENTS="$APP/Contents"
 MACOS="$CONTENTS/MacOS"
+RESOURCES="$CONTENTS/Resources"
 
 cd "$ROOT"
-mkdir -p "$MACOS"
+mkdir -p "$MACOS" "$RESOURCES"
 cp desktop/macos/Info.plist "$CONTENTS/Info.plist"
+printf '%s\n' "$ROOT" > "$RESOURCES/BridgeProjectRoot.txt"
 
 swiftc desktop/macos/OOBridgeWidget.swift \
   -framework Cocoa \

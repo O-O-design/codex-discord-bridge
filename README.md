@@ -35,6 +35,7 @@ Discord allowlisted channel
 If you want to publish your setup or help others install it, start here:
 
 - [docs/PUBLISHING_GUIDE.md](docs/PUBLISHING_GUIDE.md)
+- [docs/MACOS_APP.md](docs/MACOS_APP.md)
 - [docs/WINDOWS.md](docs/WINDOWS.md)
 - [docs/OPEN_SOURCE.md](docs/OPEN_SOURCE.md)
 
@@ -171,7 +172,12 @@ WebKit widget wrapper:
 npm run desktop:mac
 ```
 
-The macOS `.command` files are local convenience launchers. They rely on tmux.
+This creates a real double-clickable app at
+`dist/Codex Discord Bridge Widget.app`. The app starts the bridge and monitor,
+then opens the widget view. See [docs/MACOS_APP.md](docs/MACOS_APP.md).
+
+The macOS `.command` files remain local convenience launchers. They rely on
+tmux.
 
 ## Configuration
 

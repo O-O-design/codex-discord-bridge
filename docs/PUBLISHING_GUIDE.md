@@ -35,7 +35,7 @@ Discord bot 只是傳輸層，不該另外寫一套假人格、假 monitor 或�
 - Runtime monitor 和 `/widget` 小窗顯示真實事件、排隊、處理中、完成紀錄。
 - Codex CLI stdout/stderr 會記成 `codex_cli_output`，但不硬猜工具名稱。
 - Windows 使用者可用 `.cmd` / PowerShell launcher 啟動。
-- macOS 使用者可用 `.command` / Swift WebKit wrapper 啟動。
+- macOS 使用者可用真正的 `.app` 小窗啟動；`.command` 只保留作為備用工具。
 
 ## 最短安裝流程
 
@@ -53,6 +53,9 @@ Discord bot 只是傳輸層，不該另外寫一套假人格、假 monitor 或�
 
 Windows 使用者可以先看 [WINDOWS.md](WINDOWS.md)，用
 `Start-Windows-Bridge.cmd` 和 `Start-Windows-Widget.cmd`。
+
+macOS 使用者可以先看 [MACOS_APP.md](MACOS_APP.md)，建立可雙擊的
+`dist/Codex Discord Bridge Widget.app`。
 
 ## Discord 設定建議
 
