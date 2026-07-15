@@ -23,7 +23,7 @@ Discord allowlisted channel
 - Optional recent message context with a strict limit.
 - AI-bot loop guard to prevent infinite bot-to-bot chatter.
 - Local runtime monitor at `http://127.0.0.1:3899`.
-- Compact widget view at `http://127.0.0.1:3899/widget`.
+- Compact bridge status widget at `http://127.0.0.1:3899/widget`.
 - macOS Swift/WebKit widget wrapper.
 - Windows PowerShell launchers.
 - Codex CLI stdout/stderr activity events for real background status.
@@ -91,6 +91,32 @@ Open:
 http://127.0.0.1:3899
 http://127.0.0.1:3899/widget
 ```
+
+## Customize
+
+The public defaults are intentionally generic. For a personal bridge, edit only
+the small surface below first:
+
+```text
+.env
+memory/default-seed.md or your private CODEX_SEED_FILE
+src/monitor.js
+```
+
+Recommended customization points:
+
+- Bot identity and Discord allowlists: edit `.env`.
+- Personal Codex behavior or relationship context: create a private seed file
+  and set `CODEX_SEED_FILE=memory/your-private-seed.md` in `.env`.
+- Widget title, badge, and visible labels: edit the widget HTML near
+  `widget-badge`, `widget-kicker`, and `widget-title` in `src/monitor.js`.
+- Widget colors and spacing: edit the CSS variables near the top of
+  `src/monitor.js`, plus the widget-only CSS block around `body.widget`.
+- Public/open-source naming: keep the README and default seed generic, then put
+  private names, server ids, and personal prompts in ignored local files.
+
+Do not commit `.env`, private seeds, tokens, personal server ids, or member
+rosters.
 
 ## Windows
 
