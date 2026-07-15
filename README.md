@@ -307,6 +307,7 @@ experimental relay in a second terminal:
 ```dotenv
 CODEX_APP_THREAD_ID=your-codex-task-id
 CODEX_APP_RELAY_REPLAY_EXISTING=false
+CODEX_APP_RELAY_BASELINE_GRACE_MS=30000
 ```
 
 ```bash
@@ -317,9 +318,12 @@ The relay uses Codex's local `app-server` protocol to resume the selected task,
 then sends `turn/start` with the batched Discord message and any local image
 attachments. It waits for the final assistant message before sending the reply
 back to Discord. Development turns use `on-request` approval and should still
-be approved in Codex. On first start, old inbox entries are baselined so they
-are not replayed; set `CODEX_APP_RELAY_REPLAY_EXISTING=true` only when you
-intentionally want to replay them.
+be approved in Codex. On first start, inbox entries older than the baseline
+grace window are skipped so they are not replayed; entries received during that
+window remain pending. Set `CODEX_APP_RELAY_REPLAY_EXISTING=true` only when you
+intentionally want to replay all existing entries. Adjust
+`CODEX_APP_RELAY_BASELINE_GRACE_MS` if the relay may be restarted while a
+message is still arriving.
 
 This is an experimental local integration. The relay must run on the same
 machine and under the same Codex login as the selected task. Claude Code can

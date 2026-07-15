@@ -129,6 +129,7 @@ export function getConfig({ requireDiscord = true } = {}) {
       process.env.CODEX_APP_RELAY_STATE_FILE?.trim() || "state/frontstage-relay-state.json"
     ),
     codexAppRelayPollMs: intEnv("CODEX_APP_RELAY_POLL_MS", 1_000),
+    codexAppRelayBaselineGraceMs: intEnv("CODEX_APP_RELAY_BASELINE_GRACE_MS", 30_000),
     codexAppRelayReplayExisting: boolEnv("CODEX_APP_RELAY_REPLAY_EXISTING", false),
     codexSandbox: currentCodexSandbox(),
     codexTimeoutMs: intEnv("CODEX_TIMEOUT_MS", 180_000),

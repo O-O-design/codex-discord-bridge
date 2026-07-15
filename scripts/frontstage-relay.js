@@ -343,14 +343,25 @@ async function sleep(ms) {
 await initRuntimeLog(config);
 const state = await readState();
 if (!state.initialized && !config.codexAppRelayReplayExisting) {
+  const baselineBefore = Date.now() - config.codexAppRelayBaselineGraceMs;
+  let skippedCount = 0;
+  let pendingCount = 0;
   for (const entry of await readInbox()) {
+    const entryTime = Date.parse(entry.ts ?? "");
+    if (!Number.isNaN(entryTime) && entryTime >= baselineBefore) {
+      pendingCount += 1;
+      continue;
+    }
     state.processedIds.add(entry.id);
+    skippedCount += 1;
   }
   state.initialized = true;
   await writeState(state);
   await appendRuntimeLog("frontstage_relay_baselined", {
-    summary: "前台 relay 已略過啟動前的既有 inbox",
-    skippedCount: state.processedIds.size
+    summary: "前台 relay 已略過過期 inbox，保留剛抵達的訊息",
+    skippedCount,
+    pendingCount,
+    graceMs: config.codexAppRelayBaselineGraceMs
   });
 }
 const appServer = new AppServerClient(config.codexCliPath);
