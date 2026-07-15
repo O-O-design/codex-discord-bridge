@@ -1,7 +1,7 @@
 import { AttachmentBuilder, ChannelType, Client, Events, GatewayIntentBits, Partials } from "discord.js";
-import { mkdir, rm, stat, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, extname, join, resolve, sep } from "node:path";
+import { basename, dirname, extname, join, resolve, sep } from "node:path";
 import { askCodex } from "./codex.js";
 import { getConfig } from "./config.js";
 import { loadMemberRoster } from "./members.js";
@@ -51,6 +51,11 @@ const devKeywords = [
   /\b(git|github|commit|push|npm|node|python|build|test|deploy|terminal|shell)\b/iu,
   /終端機|版控|上傳 GitHub|上傳github|套件|依賴|server|伺服器/iu
 ];
+
+async function appendFrontstageInbox(entry) {
+  await mkdir(dirname(config.discordInboxFile), { recursive: true });
+  await appendFile(config.discordInboxFile, `${JSON.stringify(entry)}\n`, "utf8");
+}
 
 function cleanMessageText(message) {
   return (
@@ -530,6 +535,59 @@ function looksLikeAuthorizationBlock(chunk) {
   return /authorize|authorization|oauth|login|sign in|permission|approval|authenticate|device code|github/i.test(chunk);
 }
 
+async function enqueueFrontstageInbox(message, batch) {
+  const first = batch[0];
+  const images = batch.flatMap((item) => item.images ?? []);
+  const inboxId = `inbox-${Date.now().toString(36)}-${(++nextJobNumber).toString(36)}`;
+  const entry = {
+    ts: new Date().toISOString(),
+    id: inboxId,
+    status: "unread",
+    deliveryMode: "inbox",
+    guildId: message.guildId ?? null,
+    guild: first.guild,
+    channelId: message.channelId,
+    channel: first.channel,
+    isDm: isDmMessage(message),
+    canPrivateReply: !isDmMessage(message) && canDmUser(message.author.id),
+    batchSize: batch.length,
+    imageCount: images.length,
+    triggerMessageId: message.id,
+    messages: batch.map((item) => ({
+      messageId: item.messageId,
+      author: item.author,
+      authorId: item.authorId,
+      authorProfile: item.authorProfile,
+      content: item.content,
+      replyContext: item.replyContext,
+      images: (item.images ?? []).map((image) => ({
+        path: image.path,
+        name: image.name,
+        contentType: image.contentType,
+        size: image.size
+      }))
+    }))
+  };
+
+  await appendFrontstageInbox(entry);
+  await appendRuntimeLog("frontstage_inbox_received", {
+    summary: `已收進前台 inbox：${inboxId}，${batch.length} 則訊息，位置 ${first.channel}`,
+    inboxId,
+    guild: first.guild,
+    channel: first.channel,
+    channelId: message.channelId,
+    batchSize: batch.length,
+    imageCount: images.length,
+    messages: batch.map((item) => ({
+      messageId: item.messageId,
+      author: item.author,
+      authorId: item.authorId,
+      content: limitText(item.content),
+      imageCount: item.images?.length ?? 0
+    }))
+  });
+}
+
 function resetBotLoopGuard(message) {
   botLoopState.delete(channelStateKey(message));
 }
@@ -601,6 +659,7 @@ client.once(Events.ClientReady, async (readyClient) => {
   console.log(`[codex-discord-bridge] blocked channels: ${config.blockedChannelIds.join(", ") || "(none)"}`);
   console.log(`[codex-discord-bridge] blocked parent channels: ${config.blockedParentChannelIds.join(", ") || "(none)"}`);
   console.log(`[codex-discord-bridge] allowed DM users: ${config.dmUserIds.length}`);
+  console.log(`[codex-discord-bridge] delivery mode: ${config.discordDeliveryMode}`);
   await appendRuntimeLog("bridge_ready", {
     summary: `已登入 Discord：${readyClient.user.tag}`,
     botUserId: readyClient.user.id,
@@ -611,7 +670,8 @@ client.once(Events.ClientReady, async (readyClient) => {
     allowedThreadIds: config.threadIds,
     blockedChannelIds: config.blockedChannelIds,
     blockedParentChannelIds: config.blockedParentChannelIds,
-    dmUserCount: config.dmUserIds.length
+    dmUserCount: config.dmUserIds.length,
+    deliveryMode: config.discordDeliveryMode
   });
 });
 
@@ -727,6 +787,20 @@ client.on(Events.MessageCreate, async (message) => {
 
   batch.timer = setTimeout(() => {
     pendingBatches.delete(batchKey);
+
+    if (config.discordDeliveryMode === "inbox") {
+      enqueueFrontstageInbox(batch.triggerMessage, batch.messages).catch((error) => {
+        console.error("[inbox] failed:", error);
+        appendRuntimeLog("frontstage_inbox_failed", {
+          summary: `前台 inbox 寫入失敗：${error.message}`,
+          error: error.message,
+          channelId: batch.triggerMessage.channelId,
+          channel: channelLabel(batch.triggerMessage),
+          batchSize: batch.messages.length
+        }).catch(() => {});
+      });
+      return;
+    }
 
     maybeRequestDevApproval(batch.triggerMessage, batch.messages)
       .then((requested) => {

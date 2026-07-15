@@ -26,6 +26,9 @@ Discord allowlisted channel
 - Optional allowlisted DM/private reply support.
 - Optional recent message context with a strict limit.
 - Development/run-code approval gate before write-capable Codex calls.
+- Optional frontstage inbox mode, where Discord messages are captured for a
+  foreground Codex task instead of being answered by a background Codex CLI
+  process.
 - AI-bot loop guard to prevent infinite bot-to-bot chatter.
 - Local runtime monitor at `http://127.0.0.1:3899`.
 - Compact bridge status widget at `http://127.0.0.1:3899/widget`.
@@ -209,6 +212,10 @@ tmux.
   Codex replies.
 - `DISCORD_CONTEXT_LIMIT`: optional recent-channel context limit. `0` disables
   this.
+- `DISCORD_DELIVERY_MODE`: `codex` runs the background Codex CLI responder.
+  `inbox` writes allowed Discord batches to `DISCORD_INBOX_FILE` without calling
+  Codex.
+- `DISCORD_INBOX_FILE`: frontstage inbox path for `DISCORD_DELIVERY_MODE=inbox`.
 - `DISCORD_IMAGE_ATTACHMENT_LIMIT`: max image attachments to pass to Codex per
   message.
 - `DISCORD_MAX_IMAGE_BYTES`: max downloaded image size.
@@ -270,6 +277,39 @@ author:
 
 The bridge does not create images by itself yet. It can pass input images to
 Codex and upload image files that Codex or another configured generator creates.
+
+## Frontstage Inbox Mode
+
+Set this when you want the Discord bot to be a microphone/eyes/speaker for a
+foreground Codex task, instead of letting a background `codex exec` session
+answer on its own:
+
+```sh
+DISCORD_DELIVERY_MODE=inbox
+DISCORD_INBOX_FILE=state/frontstage-inbox.ndjson
+```
+
+In inbox mode, allowed Discord batches are appended to the inbox file and logged
+as `frontstage_inbox_received`. No background Codex response is generated.
+
+Read recent inbox items:
+
+```sh
+npm run inbox:latest -- 5
+```
+
+After a foreground Codex task decides what to say, send the response through the
+bot:
+
+```sh
+npm run dc:send -- --channel 123 --reply 456 --content-file /tmp/reply.txt
+```
+
+For private replies:
+
+```sh
+npm run dc:send -- --dm 123 --content-file /tmp/reply.txt
+```
 
 ## Development Approval Gate
 

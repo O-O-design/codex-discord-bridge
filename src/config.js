@@ -128,6 +128,12 @@ export function getConfig({ requireDiscord = true } = {}) {
     discordBatchWindowMs: intEnv("DISCORD_BATCH_WINDOW_MS", 1_500),
     discordSoloBatchWindowMs: intEnv("DISCORD_SOLO_BATCH_WINDOW_MS", 5_000),
     discordContextLimit: nonNegativeIntEnv("DISCORD_CONTEXT_LIMIT", 0),
+    discordDeliveryMode: enumEnv(
+      "DISCORD_DELIVERY_MODE",
+      "codex",
+      new Set(["codex", "inbox"])
+    ),
+    discordInboxFile: resolve(process.cwd(), process.env.DISCORD_INBOX_FILE?.trim() || "state/frontstage-inbox.ndjson"),
     discordImageAttachmentLimit: nonNegativeIntEnv("DISCORD_IMAGE_ATTACHMENT_LIMIT", 4),
     discordMaxImageBytes: intEnv("DISCORD_MAX_IMAGE_BYTES", 10_000_000),
     discordUploadLimit: nonNegativeIntEnv("DISCORD_UPLOAD_LIMIT", 4),
