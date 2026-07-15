@@ -10,19 +10,21 @@ session 的麥克風、眼睛和發聲器。
 Discord 訊息
   -> allowlist/denylist 檢查
   -> discord.js bridge 收訊
-  -> 本機 Codex CLI session 產生回覆
+  -> 本機 Codex CLI session 或前台 Codex App task 產生回覆
   -> bridge 把回覆送回 Discord
 ```
 
 真正理解上下文、決定要不要回、產生文字的是本機 Codex session。
-Discord bot 只是傳輸層，不該另外寫一套假人格、假 monitor 或固定句庫。
+Discord bot 只是傳輸層，不該另外寫一套假人格、假狀態窗或固定句庫。
 
 比較直白地說：
 
 - Discord bot 是麥克風：接收允許頻道/thread 裡的訊息。
 - Discord bot 是眼睛：把來源、作者、引用回覆、有限上下文交給 Codex。
 - Discord bot 是發聲器：把 Codex 的輸出送回 Discord。
-- Runtime monitor 是狀態窗：只顯示真實 bridge/Codex 事件，不假裝代理人在思考。
+- Runtime status window 是本機狀態窗：只顯示真實 bridge/Codex 事件，不假裝代理人在思考。
+- Discord Watcher + Agent Event Stream 是前台可見足跡：把 Discord 觸發的
+  Codex App turn、工具、壓縮、回覆狀態留在目前 Codex task UI。
 
 ## v0.2.0 重點
 
@@ -36,6 +38,9 @@ Discord bot 只是傳輸層，不該另外寫一套假人格、假 monitor 或�
 - 開發、跑程式、改檔案類訊息可先要求 Discord 上批准，再交給 Codex 跑。
 - 若不想讓背景 Codex 自動回覆，可用 `DISCORD_DELIVERY_MODE=inbox`，只把 Discord 訊息收進前台 inbox，交給使用中的 Codex 任務讀取與決定。
 - 若要把 inbox 接到一個已開啟的 Codex App task，可在自用 `.env` 設定 `CODEX_APP_THREAD_ID`，再執行 `npm run frontstage:relay`。公開版預設不填這個值，避免未經選擇就喚醒私人 task。
+- 若要在 Codex UI 看見 Discord 觸發的前台工作狀態，使用
+  [DISCORD_WATCHER.md](DISCORD_WATCHER.md) 的 Discord Watcher + Agent Event
+  Stream 流程。
 - 同一人連續短訊息會等久一點，多人混聊仍用較短窗口，避免單人碎訊息被逐句切開。
 - `DISCORD_CONTEXT_LIMIT=0` 預設關閉最近訊息讀取，避免誤解成無限制讀頻道。
 - AI-bot loop guard 可以讓 AI 互聊幾輪後煞車。
@@ -81,7 +86,7 @@ DISCORD_DM_USER_IDS=
 DISCORD_WRITE_USER_IDS=
 CODEX_SANDBOX=workspace-write
 DISCORD_BATCH_WINDOW_MS=1500
-DISCORD_SOLO_BATCH_WINDOW_MS=5000
+DISCORD_SOLO_BATCH_WINDOW_MS=6000
 DISCORD_CONTEXT_LIMIT=0
 DISCORD_DELIVERY_MODE=codex
 DISCORD_INBOX_FILE=state/frontstage-inbox.ndjson
@@ -98,7 +103,7 @@ DISCORD_DEV_APPROVAL_MODE=heuristic
 ## 踩雷避坑
 
 - 不要把 Discord bot 寫成另一個 AI。它只是橋，不是主體。
-- 不要做假旁白或假 monitor。狀態窗只顯示 runtime log 真實事件。
+- 不要做假旁白或假狀態窗。狀態窗只顯示 runtime log 真實事件。
 - 不要預設讀 50 則最近訊息。公開版用 `DISCORD_CONTEXT_LIMIT=0` 最安全。
 - 不要用同一個 batching window 處理所有情境。單人連發可以等久一點，群聊才需要短窗口。
 - 不要把 DM 私訊開給所有人。只把 `DISCORD_DM_USER_IDS` 給可信使用者。
@@ -106,6 +111,8 @@ DISCORD_DEV_APPROVAL_MODE=heuristic
 - 不要把「生圖」寫成假狀態。沒有 configured generator 時，只支援上傳已產生的本機檔案。
 - 不要把 `workspace-write` 開給所有人。用 `DISCORD_WRITE_USER_IDS` 鎖住可信使用者，再用 `DISCORD_DEV_APPROVAL_MODE=heuristic` 讓開發/跑程式工作先停下來等 `批准 dev-...`。
 - 如果使用者要的是「前台的我」而不是背景代理，請用 inbox mode，不要讓 bridge 直接呼叫 `codex exec` 自動回。
+- 如果使用者要看見 Codex task 裡的可見足跡，請用 Discord Watcher +
+  Agent Event Stream；不要再做假旁白或只在本機小窗顯示。
 - relay 只應有一個 AI adapter 發布回覆；Claude Code 可以讀同一個 inbox 做審閱，但不要和 Codex relay 同時回同一筆訊息。
 - 不要只設 allowlist，不設 denylist。正式社群一定會有不該接的房間。
 - 不要把 token、server id、私人 prompt、成員名單 commit 上 GitHub。

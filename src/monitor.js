@@ -376,11 +376,18 @@ function htmlPage({ widget = false } = {}) {
 
     .event.codex_success,
     .event.codex_done,
+    .event.frontstage_relay_turn_completed,
+    .event.agent_event_turn_completed,
+    .event.agent_event_response_completed,
+    .event.agent_event_context_compaction_completed,
+    .event.agent_event_tool_completed,
     .event.bridge_ready {
       color: var(--ok);
     }
 
     .event.codex_failed,
+    .event.frontstage_relay_failed,
+    .event.agent_event_turn_failed,
     .event.discord_client_error,
     .event.monitor_parse_failed {
       color: var(--bad);
@@ -389,6 +396,17 @@ function htmlPage({ widget = false } = {}) {
     .event.codex_queued,
     .event.codex_start,
     .event.codex_running,
+    .event.frontstage_relay_turn_started,
+    .event.frontstage_relay_visible_task_work_started,
+    .event.frontstage_relay_waiting_newer_message,
+    .event.frontstage_relay_reply_deferred_newer_message,
+    .event.frontstage_relay_approval_required,
+    .event.agent_event_turn_started,
+    .event.agent_event_reasoning_started,
+    .event.agent_event_context_compaction_started,
+    .event.agent_event_tool_started,
+    .event.agent_event_approval_required,
+    .event.agent_event_response_started,
     .event.received,
     .event.queued,
     .event.context,
@@ -849,6 +867,11 @@ function htmlPage({ widget = false } = {}) {
       bridge_log_started: '橋接 log 已就緒',
       bridge_ready: '橋接已上線',
       message_accepted: '收到 Discord 訊息',
+      decided_silent: '判定不回',
+      waiting_debounce: '等待合併窗',
+      merged_into_batch: '併入 batch',
+      superseded_by_new: '舊任務被覆蓋',
+      codex_skipped_superseded: '過期任務已略過',
       bot_loop_limited: 'AI 互聊煞車',
       context_read_start: '讀取可選上下文',
       context_read: '可選上下文已讀',
@@ -859,14 +882,44 @@ function htmlPage({ widget = false } = {}) {
       codex_cli_output: 'Codex CLI 輸出',
       codex_success: 'Codex 完成',
       codex_failed: 'Codex 失敗',
+      codex_discarded_superseded: 'Codex 完成但丟棄',
+      discord_silent_reply: '判定靜默',
       discord_client_error: 'Discord 連線錯誤',
+      frontstage_inbox_received: '前台收訊',
+      frontstage_relay_started: 'Watcher relay 已啟動',
+      frontstage_relay_baselined: 'Relay 基準已建立',
+      frontstage_relay_turn_started: '送入 Codex task',
+      frontstage_relay_visible_task_work_started: '可見工作開始',
+      frontstage_relay_turn_completed: '已回 Discord',
+      frontstage_relay_failed: 'Relay 失敗',
+      frontstage_relay_waiting_newer_message: '等待新訊息收束',
+      frontstage_relay_reply_deferred_newer_message: '延後回覆',
+      frontstage_relay_skipped_superseded_inbox: '舊 inbox 作廢',
+      frontstage_relay_reply_discarded_handoff: '搬家後丟棄舊回覆',
+      frontstage_relay_approval_required: '等待授權',
+      agent_event_turn_started: 'Codex turn 開始',
+      agent_event_turn_completed: 'Codex turn 完成',
+      agent_event_turn_failed: 'Codex turn 失敗',
+      agent_event_task_status: 'Codex task 狀態',
+      agent_event_reasoning_started: '整理判斷中',
+      agent_event_reasoning_completed: '判斷段落完成',
+      agent_event_context_compaction_started: '上下文壓縮中',
+      agent_event_context_compaction_completed: '上下文壓縮完成',
+      agent_event_tool_started: '工具開始',
+      agent_event_tool_completed: '工具完成',
+      agent_event_approval_required: '等待授權',
+      agent_event_response_started: '開始產生回覆',
+      agent_event_response_completed: '回覆已產生',
+      agent_event_status_message_started: '狀態訊息開始',
+      agent_event_status_message_completed: '狀態訊息完成',
       monitor_parse_failed: '監控解析失敗'
     };
     const JOB_STATUS_LABELS = {
       queued: '排隊中',
       running: '處理中',
       done: '完成',
-      failed: '失敗'
+      failed: '失敗',
+      discarded: '已丟棄'
     };
     const MESSAGE_STATUS_LABELS = {
       received: '已收到',
@@ -1095,6 +1148,84 @@ function htmlPage({ widget = false } = {}) {
         case 'message_accepted':
           return (entry.author || '使用者') + ' 在 ' + (entry.channel || '允許位置') + '：' +
             (entry.content || entry.summary || '');
+        case 'decided_silent':
+          return '判定不回：' + (entry.author || '?') + ' 在 ' + (entry.channel || '?') +
+            '（' + (entry.reason || '?') + '）';
+        case 'waiting_debounce':
+          return '等待合併窗：' + (entry.author || '?') + ' 在 ' + (entry.channel || '?');
+        case 'merged_into_batch':
+          return '併入 batch：' + (entry.author || '?') + ' 在 ' + (entry.channel || '?') +
+            '，第 ' + (entry.batchSize || '?') + ' 則';
+        case 'superseded_by_new':
+          return '舊任務被覆蓋：' + (entry.oldJobId || '?') + ' → ' + (entry.newJobId || '?') +
+            '（' + (entry.channel || '?') + '）';
+        case 'codex_skipped_superseded':
+          return '過期任務已略過：' + (entry.jobId || '?') + '（' + (entry.channel || '?') + '）';
+        case 'codex_discarded_superseded':
+          return 'Codex 完成但丟棄：' + (entry.jobId || '?') + '（' + (entry.channel || '?') +
+            '），因新任務覆蓋、回覆不送 Discord';
+        case 'discord_silent_reply':
+          return '判定靜默：' + (entry.author || '?') + ' 在 ' + (entry.channel || '?');
+        case 'frontstage_inbox_received':
+          return '前台收訊：' + (entry.inboxId || '未知 inbox') + '，' +
+            (entry.batchSize || 1) + ' 則訊息，位置 ' + (entry.channel || '?') + '。';
+        case 'frontstage_relay_started':
+          return 'Watcher relay 已連到 Codex task：' + (entry.threadId || '未知 task') + '。';
+        case 'frontstage_relay_baselined':
+          return 'Relay 基準已建立：略過 ' + (entry.skippedCount || 0) +
+            ' 筆舊 inbox，保留 ' + (entry.pendingCount || 0) + ' 筆新訊息。';
+        case 'frontstage_relay_turn_started':
+          return '已送入 Codex task：' + (entry.inboxId || '未知 inbox') + '，' +
+            (entry.batchSize || 1) + ' 則訊息。';
+        case 'frontstage_relay_visible_task_work_started':
+          return '可見工作開始：' + (entry.inboxId || '未知 inbox') + '。';
+        case 'frontstage_relay_turn_completed':
+          return '已回 Discord：' + (entry.inboxId || '未知 inbox') + '，回覆 ' +
+            (entry.responseChars || 0) + ' 字。';
+        case 'frontstage_relay_failed':
+          return 'Relay 失敗：' + (entry.effectiveInboxId || entry.inboxId || '未知 inbox') +
+            '，' + (entry.error || entry.summary || '未知錯誤');
+        case 'frontstage_relay_waiting_newer_message':
+          return '等待同頻道新訊息收束：' + (entry.inboxId || '未知 inbox') + '。';
+        case 'frontstage_relay_reply_deferred_newer_message':
+          return '偵測到更新訊息，先延後舊回覆：' + (entry.inboxId || '未知 inbox') + '。';
+        case 'frontstage_relay_skipped_superseded_inbox':
+          return '同頻道已有較新回覆，舊 inbox 已作廢：' + (entry.inboxId || '未知 inbox') + '。';
+        case 'frontstage_relay_reply_discarded_handoff':
+          return 'Watcher 已搬家或斷麥，舊 task 回覆已丟棄：' + (entry.inboxId || '未知 inbox') + '。';
+        case 'frontstage_relay_approval_required':
+        case 'agent_event_approval_required':
+          return '等待 Codex 視窗授權：' + (entry.request || 'approval') + '。';
+        case 'agent_event_turn_started':
+          return 'Codex turn 開始：' + (entry.inboxId || entry.turnId || '目前訊息') + '。';
+        case 'agent_event_turn_completed':
+          return 'Codex turn 完成：' + (entry.inboxId || entry.turnId || '目前訊息') +
+            (Number.isFinite(entry.durationMs) ? '，耗時 ' + formatHumanDuration(entry.durationMs) : '') + '。';
+        case 'agent_event_turn_failed':
+          return 'Codex turn 失敗：' + (entry.error || entry.summary || '未知錯誤');
+        case 'agent_event_task_status':
+          return 'Codex task 狀態：' + (entry.taskStatus === 'active' ? '處理中' : '待命') + '。';
+        case 'agent_event_reasoning_started':
+          return 'Codex 正在整理判斷。';
+        case 'agent_event_reasoning_completed':
+          return '判斷段落完成。';
+        case 'agent_event_context_compaction_started':
+          return '上下文壓縮開始，Watcher 不應因此斷麥。';
+        case 'agent_event_context_compaction_completed':
+          return '上下文壓縮完成。';
+        case 'agent_event_tool_started':
+          return '工具開始：' + (entry.commandAction || '工具執行') + '。';
+        case 'agent_event_tool_completed':
+          return '工具完成：' + (entry.commandAction || '工具執行') +
+            (Number.isFinite(entry.durationMs) ? '，耗時 ' + formatHumanDuration(entry.durationMs) : '') + '。';
+        case 'agent_event_response_started':
+          return '開始產生 Discord 回覆。';
+        case 'agent_event_response_completed':
+          return 'Discord 回覆已產生。';
+        case 'agent_event_status_message_started':
+          return '開始產生狀態訊息。';
+        case 'agent_event_status_message_completed':
+          return '狀態訊息已產生。';
         case 'codex_queued':
           return 'Codex 任務已排隊：' + (entry.jobId || '未知任務') + '，' +
             (entry.batchSize || 1) + ' 則訊息。';
@@ -1156,7 +1287,7 @@ function htmlPage({ widget = false } = {}) {
     function currentWidgetStage() {
       if (state.activeJobId) {
         const activeJob = jobs.get(state.activeJobId);
-        const title = state.workStep === 'codex' ? state.workStage : null;
+        const title = ['context', 'codex', 'reply'].includes(state.workStep) ? state.workStage : null;
 
         return {
           title: title || (activeJob?.status === 'running' ? 'Codex 處理中' : '任務處理中'),
@@ -1322,6 +1453,59 @@ function htmlPage({ widget = false } = {}) {
       }
     }
 
+    function refreshQueueCount() {
+      state.queueCount = [...jobs.values()].filter((job) => job.status === 'queued').length;
+    }
+
+    function frontstageJobId(entry) {
+      return entry.inboxId || entry.effectiveInboxId || entry.turnId || entry.itemId || null;
+    }
+
+    function upsertFrontstageJob(entry, status, extra = {}) {
+      const id = frontstageJobId(entry);
+      if (!id) {
+        return null;
+      }
+
+      const previous = jobs.get(id) || { id };
+      const next = {
+        ...previous,
+        ...extra,
+        id,
+        status,
+        ts: previous.ts || entry.ts,
+        summary: entry.summary,
+        channel: entry.channel || previous.channel,
+        batchSize: entry.batchSize || previous.batchSize,
+        sandbox: entry.sandbox || previous.sandbox
+      };
+
+      jobs.set(id, next);
+      refreshQueueCount();
+      return next;
+    }
+
+    function markFrontstageActive(entry, status = 'running') {
+      const job = upsertFrontstageJob(entry, status, { startedTs: entry.ts });
+      if (job?.id) {
+        state.activeJobId = job.id;
+      }
+    }
+
+    function finishFrontstageJob(entry, status) {
+      const job = upsertFrontstageJob(entry, status, {
+        finishedTs: entry.ts,
+        durationMs: entry.durationMs,
+        responseLength: entry.responseChars || entry.responseLength,
+        error: entry.error
+      });
+      if (job?.id && state.activeJobId === job.id) {
+        state.activeJobId = null;
+      }
+      refreshQueueCount();
+      return job;
+    }
+
     function applyEntry(entry) {
       entries.unshift(entry);
       if (entries.length > 120) {
@@ -1343,6 +1527,15 @@ function htmlPage({ widget = false } = {}) {
         setWork('idle', '監控已啟動', formatEntrySummary(entry), entryDetail(entry), 'ok');
       }
 
+      if (entry.event === 'frontstage_relay_started') {
+        state.bridgeStatus = entry.watcherActive ? 'Watcher 已接麥' : 'Relay 待命';
+        setWork('idle', 'Watcher relay 已啟動', formatEntrySummary(entry), entryDetail(entry), 'ok');
+      }
+
+      if (entry.event === 'frontstage_relay_baselined') {
+        setWork('idle', 'Relay 基準已建立', formatEntrySummary(entry), entryDetail(entry), 'ok');
+      }
+
       if (entry.event === 'message_accepted') {
         upsertMessageStatus({
           messageId: entry.messageId,
@@ -1356,6 +1549,122 @@ function htmlPage({ widget = false } = {}) {
           entryDetail(entry),
           'info'
         );
+      }
+
+      if (entry.event === 'frontstage_inbox_received') {
+        upsertFrontstageJob(entry, 'queued');
+        upsertMessagesFromEntry(entry, 'queued');
+        setWork('received', '前台收訊', formatEntrySummary(entry), entryDetail(entry), 'info');
+      }
+
+      if (entry.event === 'frontstage_relay_waiting_newer_message') {
+        setWork('received', '等待新訊息收束', formatEntrySummary(entry), entryDetail(entry), 'info');
+      }
+
+      if (entry.event === 'frontstage_relay_skipped_superseded_inbox') {
+        finishFrontstageJob(entry, 'discarded');
+        setWork('done', '舊 inbox 已作廢', formatEntrySummary(entry), entryDetail(entry), 'warn');
+      }
+
+      if (entry.event === 'frontstage_relay_turn_started') {
+        markFrontstageActive(entry);
+        setWork('codex', '送入 Codex task', formatEntrySummary(entry), entryDetail(entry), 'warn');
+      }
+
+      if (entry.event === 'frontstage_relay_visible_task_work_started') {
+        markFrontstageActive(entry);
+        setWork('codex', '可見工作開始', formatEntrySummary(entry), entryDetail(entry), 'warn');
+      }
+
+      if (entry.event === 'frontstage_relay_reply_deferred_newer_message') {
+        setWork('received', '延後舊回覆', formatEntrySummary(entry), entryDetail(entry), 'warn');
+      }
+
+      if (entry.event === 'frontstage_relay_reply_discarded_handoff') {
+        finishFrontstageJob(entry, 'discarded');
+        setWork('done', '舊回覆已丟棄', formatEntrySummary(entry), entryDetail(entry), 'warn');
+      }
+
+      if (entry.event === 'frontstage_relay_approval_required') {
+        setWork('codex', '等待 Codex 授權', formatEntrySummary(entry), entryDetail(entry), 'warn');
+      }
+
+      if (entry.event === 'frontstage_relay_turn_completed') {
+        finishFrontstageJob(entry, 'done');
+        state.lastResult = '完成：' + (entry.responseChars || 0) + ' 字';
+        setWork('done', '已回覆 Discord', formatEntrySummary(entry), entryDetail(entry), 'ok');
+      }
+
+      if (entry.event === 'frontstage_relay_failed') {
+        finishFrontstageJob(entry, 'failed');
+        state.lastResult = '失敗：' + (entry.error || frontstageJobId(entry) || 'relay');
+        setWork('failed', 'Relay 卡住或失敗', formatEntrySummary(entry), entryDetail(entry), 'bad');
+      }
+
+      if (entry.event === 'agent_event_turn_started') {
+        markFrontstageActive(entry);
+        setWork('codex', 'Codex turn 開始', formatEntrySummary(entry), entryDetail(entry), 'warn');
+      }
+
+      if (entry.event === 'agent_event_task_status') {
+        if (entry.taskStatus === 'active') {
+          setWork('codex', 'Codex task 處理中', formatEntrySummary(entry), entryDetail(entry), 'warn');
+        } else if (!state.activeJobId) {
+          setWork('idle', 'Codex task 待命', formatEntrySummary(entry), entryDetail(entry), 'ok');
+        }
+      }
+
+      if (entry.event === 'agent_event_reasoning_started') {
+        markFrontstageActive(entry);
+        setWork('codex', '整理判斷中', formatEntrySummary(entry), entryDetail(entry), 'warn');
+      }
+
+      if (entry.event === 'agent_event_reasoning_completed') {
+        setWork('codex', '判斷段落完成', formatEntrySummary(entry), entryDetail(entry), 'info');
+      }
+
+      if (entry.event === 'agent_event_context_compaction_started') {
+        markFrontstageActive(entry);
+        setWork('context', '上下文壓縮中', formatEntrySummary(entry), entryDetail(entry), 'warn');
+      }
+
+      if (entry.event === 'agent_event_context_compaction_completed') {
+        setWork('context', '上下文壓縮完成', formatEntrySummary(entry), entryDetail(entry), 'ok');
+      }
+
+      if (entry.event === 'agent_event_tool_started') {
+        markFrontstageActive(entry);
+        setWork('codex', '工具執行中', formatEntrySummary(entry), entry.cwd || entryDetail(entry), 'warn');
+      }
+
+      if (entry.event === 'agent_event_tool_completed') {
+        setWork('codex', '工具已完成', formatEntrySummary(entry), entryDetail(entry), 'info');
+      }
+
+      if (entry.event === 'agent_event_approval_required') {
+        setWork('codex', '等待 Codex 授權', formatEntrySummary(entry), entryDetail(entry), 'warn');
+      }
+
+      if (entry.event === 'agent_event_response_started') {
+        setWork('reply', '產生回覆中', formatEntrySummary(entry), entryDetail(entry), 'warn');
+      }
+
+      if (entry.event === 'agent_event_response_completed') {
+        setWork('reply', '回覆已產生', formatEntrySummary(entry), entryDetail(entry), 'info');
+      }
+
+      if (entry.event === 'agent_event_turn_completed') {
+        finishFrontstageJob(entry, 'done');
+        state.lastResult = Number.isFinite(entry.durationMs)
+          ? '完成：' + formatDuration(entry.durationMs)
+          : '完成：Codex turn';
+        setWork('done', 'Codex turn 完成', formatEntrySummary(entry), entryDetail(entry), 'ok');
+      }
+
+      if (entry.event === 'agent_event_turn_failed') {
+        finishFrontstageJob(entry, 'failed');
+        state.lastResult = '失敗：' + (entry.error || 'Codex turn');
+        setWork('failed', 'Codex turn 失敗', formatEntrySummary(entry), entryDetail(entry), 'bad');
       }
 
       if (entry.event === 'codex_queued' && entry.jobId) {
@@ -1442,6 +1751,47 @@ function htmlPage({ widget = false } = {}) {
 
       if (entry.event === 'discord_client_error') {
         setWork('failed', 'Discord 連線錯誤', formatEntrySummary(entry), entryDetail(entry), 'bad');
+      }
+
+      if (entry.event === 'decided_silent') {
+        setWork('idle', '安靜略過', formatEntrySummary(entry), entryDetail(entry), 'info');
+      }
+
+      if (entry.event === 'waiting_debounce') {
+        setWork('received', '等待合併窗', formatEntrySummary(entry), entryDetail(entry), 'info');
+      }
+
+      if (entry.event === 'merged_into_batch') {
+        setWork('received', '併入 batch', formatEntrySummary(entry), entryDetail(entry), 'info');
+      }
+
+      if (entry.event === 'superseded_by_new') {
+        setWork('codex', '舊任務被覆蓋', formatEntrySummary(entry), entryDetail(entry), 'warn');
+      }
+
+      if (entry.event === 'codex_skipped_superseded') {
+        setWork('done', '過期任務已略過', formatEntrySummary(entry), entryDetail(entry), 'warn');
+      }
+
+      if (entry.event === 'codex_discarded_superseded' && entry.jobId) {
+        const job = jobs.get(entry.jobId) || { id: entry.jobId };
+        jobs.set(entry.jobId, {
+          ...job,
+          status: 'discarded',
+          finishedTs: entry.ts,
+          durationMs: entry.durationMs,
+          summary: entry.summary,
+          responseLength: entry.responseLength
+        });
+        if (state.activeJobId === entry.jobId) {
+          state.activeJobId = null;
+        }
+        state.lastResult = '丟棄：' + shortJobId(entry.jobId);
+        setWork('done', 'Codex 完成但丟棄', formatEntrySummary(entry), entryDetail(entry), 'warn');
+      }
+
+      if (entry.event === 'discord_silent_reply') {
+        setWork('idle', '判定靜默', formatEntrySummary(entry), entryDetail(entry), 'info');
       }
     }
 

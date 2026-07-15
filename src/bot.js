@@ -6,6 +6,7 @@ import { askCodex } from "./codex.js";
 import { getConfig } from "./config.js";
 import { loadMemberRoster } from "./members.js";
 import { appendRuntimeLog, initRuntimeLog, limitText } from "./runtime-log.js";
+import { readWatcherLease, updateWatcherLease } from "./watcher-lease.js";
 
 const config = getConfig();
 await initRuntimeLog(config);
@@ -21,7 +22,8 @@ const client = new Client({
   partials: [Partials.Channel]
 });
 
-let codexQueue = Promise.resolve();
+const perChannelQueues = new Map();
+const perChannelActive = new Map();
 let nextJobNumber = 0;
 let queuedJobCount = 0;
 let activeJobId = null;
@@ -42,8 +44,10 @@ const tmpRoots = [...new Set([tmpdir(), process.env.TMPDIR].filter(Boolean).map(
 const imageExtensions = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif"]);
 const uploadDirectivePattern = /^\s*\[\[discord-upload:(.+?)\]\]\s*$/i;
 const privateDirectivePattern = /^\s*\[\[discord-private\]\]\s*$/i;
+const silentDirectivePattern = /^\s*\[\[discord-silent\]\]\s*$/i;
 const devApprovalPattern = /^\s*(?:批准|同意|approve|ok)\s+([a-z0-9-]+)\s*$/i;
 const devDenyPattern = /^\s*(?:拒絕|取消|deny|cancel)\s+([a-z0-9-]+)\s*$/i;
+const watcherCommandPattern = /^\/(接麥|斷麥|搬家)(?:\s+([^\s]+))?(?:\s+([0-9a-f-]{8,}))?\s*$/i;
 const devKeywords = [
   /寫(程式|code)|改(檔|程式|app|網站|repo)|修( bug|bug|錯|程式)?/iu,
   /做(成|一個|個)?\s*(app|APP|網站|工具|功能|橋接|程式)|建立|新增|更新|打造|蓋(好|一個)?/iu,
@@ -51,6 +55,32 @@ const devKeywords = [
   /\b(git|github|commit|push|npm|node|python|build|test|deploy|terminal|shell)\b/iu,
   /終端機|版控|上傳 GitHub|上傳github|套件|依賴|server|伺服器/iu
 ];
+const incompleteTailPattern = /(?:[，、：:（(「『《<]|[.。]{3}|[⋯…~-])$/u;
+const continuationLeadPattern = /^(?:等一下|等等|先|那|所以|可是|但是|不過|另外|還有|對了|再來|因為|如果|你看|我想想|就是)/u;
+const continuationTailPattern = /(?:然後|還有|另外|再來|對了|因為|所以|可是|但是|不過|如果|就是|像是|例如|等一下|等等|我想想|你看|接著|以及|而且|或是|還沒|不要急)$/u;
+const shortReactionPattern = /^(?:嗯+|呃+|欸+|啊+|喔+|噗+|呼+|好+|對+|不要+|不不+|哈哈+|咳+|等一下|等等)[～~！!？?。⋯…]*$/u;
+
+function stopBatchTyping(batch) {
+  if (batch.typingTimer) {
+    clearInterval(batch.typingTimer);
+    batch.typingTimer = null;
+  }
+}
+
+function pulseBatchTyping(batchKey, batch, message, waitMs) {
+  stopBatchTyping(batch);
+  const channel = message.channel;
+  const stopAt = Date.now() + Math.max(waitMs, 0) + 4_000;
+
+  channel.sendTyping().catch(() => {});
+  batch.typingTimer = setInterval(() => {
+    if (Date.now() > stopAt || pendingBatches.get(batchKey) !== batch) {
+      stopBatchTyping(batch);
+      return;
+    }
+    channel.sendTyping().catch(() => {});
+  }, 4_000);
+}
 
 async function appendFrontstageInbox(entry) {
   await mkdir(dirname(config.discordInboxFile), { recursive: true });
@@ -87,6 +117,64 @@ function splitDiscordMessage(content) {
   }
 
   return chunks;
+}
+
+function semanticHoldReason(batch) {
+  const authorIds = new Set(batch.messages.map((item) => item.authorId));
+  if (authorIds.size !== 1) {
+    return null;
+  }
+
+  const last = batch.messages.at(-1);
+  const text = (last?.content ?? "").replace(/\s+/g, " ").trim();
+  if (!text) {
+    return null;
+  }
+
+  if (incompleteTailPattern.test(text) || continuationLeadPattern.test(text) || continuationTailPattern.test(text)) {
+    return "語尾未完";
+  }
+
+  if (shortReactionPattern.test(text)) {
+    return "短反應";
+  }
+
+  if (batch.messages.length >= 2 && text.length <= 80) {
+    return "連續短訊息";
+  }
+
+  const compact = text.replace(/[，。！？!?～~\s]/g, "");
+  if (compact.length <= 32 && /[？?]$/.test(text)) {
+    return "短問句";
+  }
+
+  if (compact.length > 0 && compact.length <= 14) {
+    return "短句";
+  }
+
+  return null;
+}
+
+function chooseBatchWindow(batch) {
+  const authorIds = new Set(batch.messages.map((item) => item.authorId));
+  const baseMs = authorIds.size === 1
+    ? config.discordSoloBatchWindowMs
+    : config.discordBatchWindowMs;
+  const reason = semanticHoldReason(batch);
+
+  if (!reason) {
+    return { waitMs: baseMs, reason: authorIds.size === 1 ? "單人基本窗" : "多人基本窗" };
+  }
+
+  const elapsedMs = Date.now() - batch.createdAt;
+  const remainingMaxMs = Math.max(0, config.discordSemanticMaxHoldMs - elapsedMs);
+  const semanticMs = Math.min(config.discordSemanticHoldMs, remainingMaxMs);
+
+  if (semanticMs <= baseMs) {
+    return { waitMs: baseMs, reason: `${reason}，已接近等待上限` };
+  }
+
+  return { waitMs: semanticMs, reason };
 }
 
 async function sendMessageChunks(channel, content) {
@@ -189,6 +277,148 @@ function isAllowedMessage(message) {
   }
 
   return message.channel?.isThread?.() && allowedParentChannelIds.has(message.channel.parentId);
+}
+
+async function maybeHandleWatcherCommand(message, content) {
+  const match = content.match(watcherCommandPattern);
+  if (!match) {
+    return false;
+  }
+
+  if (!writeUserIds.has(message.author.id)) {
+    await message.channel.send("這個控制指令只接受主要授權者。");
+    await appendRuntimeLog("watcher_command_denied", {
+      summary: `拒絕 Discord Watcher 控制：${message.author.tag}`,
+      command: match[1],
+      authorId: message.author.id,
+      channelId: message.channelId
+    });
+    return true;
+  }
+
+  const command = match[1];
+  const roomId = match[2] ?? null;
+  const targetThreadId = match[3] ?? null;
+  const current = await readWatcherLease(config);
+
+  if (command === "斷麥") {
+    const lease = await updateWatcherLease(config, (previous) => ({
+      ...previous,
+      active: false,
+      updatedBy: message.author.id
+    }));
+    await message.channel.send("Discord Watcher 已斷麥。Bot 保留在線，但不再把一般訊息送進 Codex。");
+    await appendRuntimeLog("watcher_detached", {
+      summary: "Discord Watcher 已斷麥",
+      epoch: lease.epoch,
+      threadId: lease.threadId,
+      authorId: message.author.id,
+      channelId: message.channelId
+    });
+    return true;
+  }
+
+  const registeredRoom = roomId ? current.rooms?.[roomId] : null;
+  if (registeredRoom?.status === "retired") {
+    await message.channel.send(`「${roomId}」已經退役，不能再接回麥克風。請替新房使用新的房號。`);
+    return true;
+  }
+  const nextThreadId = targetThreadId ?? registeredRoom?.threadId ?? current.threadId ?? config.codexAppThreadId;
+  if (!nextThreadId) {
+    await message.channel.send("這個房號還沒有綁定 Codex task。第一次請用：`/接麥 <房號> <task-id>`。之後只要喊房號就好。");
+    return true;
+  }
+
+  if (roomId && !registeredRoom && !targetThreadId) {
+    await message.channel.send("新房號第一次使用需要 task ID：`/接麥 <房號> <task-id>`。綁定過後才能只用房號接麥或搬家。");
+    return true;
+  }
+
+  const lease = await updateWatcherLease(config, (previous) => ({
+    ...previous,
+    active: true,
+    threadId: nextThreadId,
+    roomId: roomId ?? previous.roomId,
+    rooms: roomId
+      ? {
+          ...previous.rooms,
+          ...(previous.roomId && previous.roomId !== roomId && previous.rooms?.[previous.roomId]
+            ? {
+                [previous.roomId]: {
+                  ...previous.rooms[previous.roomId],
+                  status: "retired",
+                  updatedAt: new Date().toISOString()
+                }
+              }
+            : {}),
+          [roomId]: {
+            threadId: nextThreadId,
+            status: "available",
+            updatedAt: new Date().toISOString()
+          }
+        }
+      : previous.rooms,
+    updatedBy: message.author.id
+  }));
+  const moved = command === "搬家" || current.threadId !== nextThreadId || current.roomId !== lease.roomId;
+  await message.channel.send(
+    moved
+      ? `Discord Watcher 正在搬到 ${lease.roomId ?? "新房"}。舊房已退役，舊 task 即使仍在跑也不會再回 Discord。`
+      : `Discord Watcher 已接麥，正在觀測 ${lease.roomId ?? "目前房"}。`
+  );
+  await appendRuntimeLog(moved ? "watcher_moved" : "watcher_attached", {
+    summary: moved ? "Discord Watcher 正在搬家" : "Discord Watcher 已接麥",
+    epoch: lease.epoch,
+    fromThreadId: current.threadId,
+    threadId: lease.threadId,
+    fromRoomId: current.roomId,
+    roomId: lease.roomId,
+    authorId: message.author.id,
+    channelId: message.channelId
+  });
+  return true;
+}
+
+function isAddressedToBot(message, content) {
+  if (isDmMessage(message)) {
+    return { matched: true, reason: "dm" };
+  }
+
+  if (message.mentions?.users?.has?.(client.user.id)) {
+    return { matched: true, reason: "mention" };
+  }
+
+  const referenceId = message.reference?.messageId;
+  if (referenceId) {
+    const cached = message.channel?.messages?.cache?.get?.(referenceId);
+    if (cached?.author?.id === client.user.id) {
+      return { matched: true, reason: "reply_to_me" };
+    }
+  }
+
+  const patterns = config.discordAddressPatterns ?? [];
+  for (const pattern of patterns) {
+    if (!pattern) {
+      continue;
+    }
+    if (content.includes(pattern)) {
+      return { matched: true, reason: "name_called", pattern };
+    }
+  }
+
+  const alwaysRespond = new Set(config.discordAlwaysRespondChannelIds ?? []);
+  if (alwaysRespond.has(message.channelId)) {
+    return { matched: true, reason: "always_respond_channel" };
+  }
+
+  if (config.discordWakeOnAllowedMessage) {
+    return {
+      matched: true,
+      reason: message.author.bot ? "peer_bot_wake" : "allowlisted_wake"
+    };
+  }
+
+  return { matched: false, reason: "not_addressed" };
 }
 
 function blockedReason(message) {
@@ -335,6 +565,7 @@ function isAllowedUploadPath(filePath) {
 function parseResponseDirectives(response) {
   const uploadPaths = [];
   let privateReply = false;
+  let silent = false;
   const textLines = [];
 
   for (const line of response.split(/\r?\n/)) {
@@ -349,13 +580,19 @@ function parseResponseDirectives(response) {
       continue;
     }
 
+    if (silentDirectivePattern.test(line)) {
+      silent = true;
+      continue;
+    }
+
     textLines.push(line);
   }
 
   return {
     text: textLines.join("\n").trim(),
     uploadPaths,
-    privateReply
+    privateReply,
+    silent
   };
 }
 
@@ -402,6 +639,17 @@ async function sendUploadFiles(channel, uploadPaths) {
 
 async function sendCodexResponse(message, response) {
   const directives = parseResponseDirectives(response);
+  if (directives.silent) {
+    await appendRuntimeLog("discord_silent_reply", {
+      summary: `Codex 判定不回 Discord：${channelLabel(message)}`,
+      channelId: message.channelId,
+      channel: channelLabel(message),
+      author: message.author.tag,
+      authorId: message.author.id
+    });
+    return;
+  }
+
   const shouldDm = directives.privateReply && !isDmMessage(message) && canDmUser(message.author.id);
   const targetChannel = shouldDm ? await message.author.createDM() : message.channel;
 
@@ -569,6 +817,7 @@ async function enqueueFrontstageInbox(message, batch) {
     }))
   };
 
+  await message.channel.sendTyping().catch(() => {});
   await appendFrontstageInbox(entry);
   await appendRuntimeLog("frontstage_inbox_received", {
     summary: `已收進前台 inbox：${inboxId}，${batch.length} 則訊息，位置 ${first.channel}`,
@@ -728,7 +977,45 @@ client.on(Events.MessageCreate, async (message) => {
   }
 
   const content = cleanMessageText(message);
+  if (await maybeHandleWatcherCommand(message, content)) {
+    return;
+  }
+
+  if (config.discordDeliveryMode === "inbox") {
+    const lease = await readWatcherLease(config);
+    if (!lease.active) {
+      await appendRuntimeLog("watcher_silent", {
+        summary: `Discord Watcher 未接麥，略過 ${message.author.tag} 的一般訊息`,
+        channelId: message.channelId,
+        channel: channelLabel(message),
+        messageId: message.id,
+        authorId: message.author.id,
+        epoch: lease.epoch
+      });
+      return;
+    }
+  }
+
   if (await maybeHandleApprovalCommand(message, content)) {
+    return;
+  }
+
+  const addressed = isAddressedToBot(message, content);
+  if (!addressed.matched) {
+    await appendRuntimeLog("decided_silent", {
+      summary: `安靜略過：${message.author.tag} 在 ${channelLabel(message)}（${addressed.reason}）`,
+      reason: addressed.reason,
+      messageId: message.id,
+      guildId: message.guildId,
+      guild: message.guild?.name ?? null,
+      channelId: message.channelId,
+      channel: channelLabel(message),
+      parentChannelId: message.channel?.parentId ?? null,
+      author: message.author.tag,
+      authorId: message.author.id,
+      authorIsBot: message.author.bot,
+      content: limitText(content)
+    });
     return;
   }
 
@@ -753,14 +1040,18 @@ client.on(Events.MessageCreate, async (message) => {
     authorIsBot: message.author.bot,
     content: limitText(contentWithAttachments),
     replyContext: limitText(replyContext),
-    imageCount: images.length
+    imageCount: images.length,
+    addressedReason: addressed.reason,
+    addressedPattern: addressed.pattern ?? null
   });
 
   const batchKey = channelStateKey(message);
   const batch = pendingBatches.get(batchKey) ?? {
     messages: [],
     timer: null,
-    triggerMessage: message
+    typingTimer: null,
+    triggerMessage: message,
+    createdAt: Date.now()
   };
 
   batch.messages.push({
@@ -776,17 +1067,41 @@ client.on(Events.MessageCreate, async (message) => {
   });
   batch.triggerMessage = message;
 
+  const isFirstInBatch = batch.messages.length === 1;
   if (batch.timer) {
     clearTimeout(batch.timer);
   }
 
-  const authorIds = new Set(batch.messages.map((item) => item.authorId));
-  const batchWindowMs = authorIds.size === 1
-    ? config.discordSoloBatchWindowMs
-    : config.discordBatchWindowMs;
+  const batchWindow = chooseBatchWindow(batch);
+  pulseBatchTyping(batchKey, batch, message, batchWindow.waitMs);
+  if (isFirstInBatch) {
+    appendRuntimeLog("waiting_debounce", {
+      summary: `等待合併窗：${message.author.tag} 在 ${channelLabel(message)}，${batchWindow.reason}`,
+      channelId: message.channelId,
+      channel: channelLabel(message),
+      messageId: message.id,
+      author: message.author.tag,
+      authorId: message.author.id,
+      waitMs: batchWindow.waitMs,
+      waitReason: batchWindow.reason
+    }).catch(() => {});
+  } else {
+    appendRuntimeLog("merged_into_batch", {
+      summary: `併入 batch：${message.author.tag} 在 ${channelLabel(message)}，第 ${batch.messages.length} 則，${batchWindow.reason}`,
+      channelId: message.channelId,
+      channel: channelLabel(message),
+      messageId: message.id,
+      author: message.author.tag,
+      authorId: message.author.id,
+      batchSize: batch.messages.length,
+      waitMs: batchWindow.waitMs,
+      waitReason: batchWindow.reason
+    }).catch(() => {});
+  }
 
   batch.timer = setTimeout(() => {
     pendingBatches.delete(batchKey);
+    stopBatchTyping(batch);
 
     if (config.discordDeliveryMode === "inbox") {
       enqueueFrontstageInbox(batch.triggerMessage, batch.messages).catch((error) => {
@@ -812,7 +1127,7 @@ client.on(Events.MessageCreate, async (message) => {
         console.error("[approval] failed:", error);
         enqueueCodexBatch(batch.triggerMessage, batch.messages);
       });
-  }, batchWindowMs);
+  }, batchWindow.waitMs);
 
   pendingBatches.set(batchKey, batch);
 });
@@ -823,72 +1138,108 @@ function sandboxForBatch(batch) {
 
 function enqueueCodexBatch(message, batch, options = {}) {
   const first = batch[0];
-  const sandbox = sandboxForBatch(batch);
-  const images = batch.flatMap((item) => item.images ?? []);
   const jobId = `codex-${Date.now().toString(36)}-${(++nextJobNumber).toString(36)}`;
+  const queueKey = message.channelId;
+  const prevActive = perChannelActive.get(queueKey);
+  const effectiveBatch = prevActive?.effectiveBatch
+    ? [...prevActive.effectiveBatch, ...batch]
+    : batch;
+  const sandbox = sandboxForBatch(effectiveBatch);
+  const images = effectiveBatch.flatMap((item) => item.images ?? []);
+  const batchContext = { jobId, superseded: false, effectiveBatch };
+  if (prevActive && !prevActive.superseded) {
+    prevActive.superseded = true;
+    appendRuntimeLog("superseded_by_new", {
+      summary: `舊任務作廢：${prevActive.jobId} 被 ${jobId} 覆蓋（${first.channel}）`,
+      queueKey,
+      channelId: message.channelId,
+      channel: first.channel,
+      oldJobId: prevActive.jobId,
+      newJobId: jobId
+    }).catch(() => {});
+  }
+  perChannelActive.set(queueKey, batchContext);
   const content =
-    batch.length === 1
+    effectiveBatch.length === 1
       ? [first.replyContext, first.content].filter(Boolean).join("\n")
       : [
           "以下是同一個 Discord 頻道內短時間連續訊息，請整體理解後自然回覆，不要逐句機械拆答：",
           "",
-          ...batch.map((item) =>
+          ...effectiveBatch.map((item) =>
             [item.replyContext, `${item.author}: ${item.content}`].filter(Boolean).join("\n")
           )
         ].join("\n");
 
   queuedJobCount += 1;
   appendRuntimeLog("codex_queued", {
-    summary: `Codex 任務已排隊：${jobId}，${batch.length} 則訊息，位置 ${first.channel}`,
+    summary: `Codex 任務已排隊：${jobId}，${effectiveBatch.length} 則訊息，位置 ${first.channel}`,
     jobId,
+    queueKey,
     guild: first.guild,
     channel: first.channel,
     channelId: message.channelId,
-    batchSize: batch.length,
+    batchSize: effectiveBatch.length,
     sandbox,
     queuedJobCount,
     activeJobId,
     approvalId: options.approvalId ?? null,
     imageCount: images.length,
-    messages: batch.map((item) => ({
+    messages: effectiveBatch.map((item) => ({
       messageId: item.messageId,
       author: item.author,
       authorId: item.authorId,
       content: limitText(item.content),
       imageCount: item.images?.length ?? 0
     })),
-    authors: batch.map((item) => ({
+    authors: effectiveBatch.map((item) => ({
       author: item.author,
       authorId: item.authorId
     }))
   }).catch(() => {});
 
-  codexQueue = codexQueue
+  const prev = perChannelQueues.get(queueKey) ?? Promise.resolve();
+  const jobPromise = prev
     .then(async () => {
+      if (batchContext.superseded) {
+        queuedJobCount = Math.max(queuedJobCount - 1, 0);
+        await appendRuntimeLog("codex_skipped_superseded", {
+          summary: `略過已過期任務：${jobId}（${first.channel}），等待較新的合併任務`,
+          jobId,
+          queueKey,
+          guild: first.guild,
+          channel: first.channel,
+          channelId: message.channelId,
+          batchSize: effectiveBatch.length,
+          queuedJobCount,
+          activeJobId
+        });
+        return;
+      }
+
       const startedAt = Date.now();
       activeJobId = jobId;
       queuedJobCount = Math.max(queuedJobCount - 1, 0);
       await message.channel.sendTyping();
       await appendRuntimeLog("codex_start", {
-        summary: `Codex 開始處理：${jobId}，${batch.length} 則訊息，權限 ${sandbox}`,
+        summary: `Codex 開始處理：${jobId}，${effectiveBatch.length} 則訊息，權限 ${sandbox}`,
         jobId,
         guild: first.guild,
         channel: first.channel,
         channelId: message.channelId,
-        batchSize: batch.length,
+        batchSize: effectiveBatch.length,
         sandbox,
         queuedJobCount,
         activeJobId,
         approvalId: options.approvalId ?? null,
         imageCount: images.length,
-        messages: batch.map((item) => ({
+        messages: effectiveBatch.map((item) => ({
           messageId: item.messageId,
           author: item.author,
           authorId: item.authorId,
           content: limitText(item.content),
           imageCount: item.images?.length ?? 0
         })),
-        authors: batch.map((item) => ({
+        authors: effectiveBatch.map((item) => ({
           author: item.author,
           authorId: item.authorId
         }))
@@ -913,7 +1264,7 @@ function enqueueCodexBatch(message, batch, options = {}) {
             activeJobId,
             contextLimit: config.discordContextLimit,
             imageCount: images.length,
-            messages: batch.map((item) => ({
+            messages: effectiveBatch.map((item) => ({
               messageId: item.messageId,
               author: item.author,
               authorId: item.authorId,
@@ -935,7 +1286,7 @@ function enqueueCodexBatch(message, batch, options = {}) {
           contextLimit: config.discordContextLimit,
           contextLength: recentContext.length,
           imageCount: images.length,
-          messages: batch.map((item) => ({
+          messages: effectiveBatch.map((item) => ({
             messageId: item.messageId,
             author: item.author,
             authorId: item.authorId,
@@ -992,6 +1343,30 @@ function enqueueCodexBatch(message, batch, options = {}) {
           }
         });
 
+        if (batchContext.superseded) {
+          await appendRuntimeLog("codex_discarded_superseded", {
+            summary: `已丟棄過期回覆：${jobId}（${first.channel}）跑完但被新任務覆蓋`,
+            jobId,
+            queueKey,
+            guild: first.guild,
+            channel: first.channel,
+            channelId: message.channelId,
+            sandbox,
+            durationMs: Date.now() - startedAt,
+            responseLength: response.length,
+            response: limitText(response),
+            imageCount: images.length,
+            messages: effectiveBatch.map((item) => ({
+              messageId: item.messageId,
+              author: item.author,
+              authorId: item.authorId,
+              content: limitText(item.content),
+              imageCount: item.images?.length ?? 0
+            }))
+          });
+          return;
+        }
+
         await sendCodexResponse(message, response);
         console.log("[codex] replied through Discord.");
         await appendRuntimeLog("codex_success", {
@@ -1006,7 +1381,7 @@ function enqueueCodexBatch(message, batch, options = {}) {
           responseLength: response.length,
           response: limitText(response),
           imageCount: images.length,
-          messages: batch.map((item) => ({
+          messages: effectiveBatch.map((item) => ({
             messageId: item.messageId,
             author: item.author,
             authorId: item.authorId,
@@ -1037,7 +1412,7 @@ function enqueueCodexBatch(message, batch, options = {}) {
           stdout: limitText(error.stdout),
           authorizationDetected: authFailure,
           imageCount: images.length,
-          messages: batch.map((item) => ({
+          messages: effectiveBatch.map((item) => ({
             messageId: item.messageId,
             author: item.author,
             authorId: item.authorId,
@@ -1052,8 +1427,11 @@ function enqueueCodexBatch(message, batch, options = {}) {
         if (activeJobId === jobId) {
           activeJobId = null;
         }
+        if (perChannelActive.get(queueKey) === batchContext) {
+          perChannelActive.delete(queueKey);
+        }
         clearInterval(typing);
-        for (const item of batch) {
+        for (const item of effectiveBatch) {
           for (const image of item.images ?? []) {
             await rm(resolve(image.path, ".."), { recursive: true, force: true }).catch(() => {});
           }
@@ -1061,8 +1439,15 @@ function enqueueCodexBatch(message, batch, options = {}) {
       }
     })
     .catch((error) => {
-      console.error("[codex] queue failed:", error);
+      console.error(`[codex] queue failed (channel ${queueKey}):`, error);
     });
+
+  perChannelQueues.set(queueKey, jobPromise);
+  jobPromise.finally(() => {
+    if (perChannelQueues.get(queueKey) === jobPromise) {
+      perChannelQueues.delete(queueKey);
+    }
+  });
 }
 
 client.on(Events.Error, (error) => {

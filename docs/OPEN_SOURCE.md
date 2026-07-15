@@ -8,7 +8,8 @@ not a separate chatbot personality.
 
 ## Before publishing
 
-- Choose a license and replace `UNLICENSED` in `package.json`.
+- Confirm the selected license is still correct. This repository currently uses
+  MIT.
 - Confirm `.env` is not committed.
 - Confirm `state/`, `logs/`, `dist/`, and `node_modules/` are not committed.
 - Keep private personas, memory files, Discord IDs, and member rosters outside
@@ -19,6 +20,9 @@ not a separate chatbot personality.
   placeholders in docs and examples.
 - Link users to [PUBLISHING_GUIDE.md](PUBLISHING_GUIDE.md) for setup framing,
   pitfalls, and the recommended public explanation.
+- Link foreground Codex App users to
+  [DISCORD_WATCHER.md](DISCORD_WATCHER.md) for the visible Watcher / Agent Event
+  Stream workflow.
 
 ## Supported local surfaces
 
@@ -33,3 +37,4 @@ not a separate chatbot personality.
 - A signed macOS app.
 - Automatic Discord application creation.
 - Stable parsing of Codex internal tool names.
+- Automatic cross-device handoff between different Codex tasks.

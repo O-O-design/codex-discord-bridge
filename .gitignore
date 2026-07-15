@@ -5,7 +5,11 @@ node_modules/
 state/*
 !state/.gitkeep
 *.csv
+ChatGPT Image*.png
+codex-clipboard-*.png
+截圖*.png
 private/
+memory/discord-watcher-anchor.md
 memory/*.private.md
 memory/*.local.md
 logs/

@@ -1,19 +1,23 @@
 {
   "name": "codex-discord-bridge",
   "version": "0.2.0",
-  "description": "Run a local Codex CLI session behind an allowlisted Discord bot bridge.",
+  "description": "Bridge allowlisted Discord channels into Codex CLI or Codex App Watcher sessions.",
   "private": false,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "scripts": {
-    "check": "node --check src/config.js && node --check src/codex.js && node --check src/runtime-log.js && node --check src/bot.js && node --check src/monitor.js && node --check src/seed-session.js && node --check scripts/probe-codex-stream.js && node --check scripts/read-inbox.js && node --check scripts/send-discord-message.js && node --check scripts/frontstage-relay.js",
+    "check": "node --check src/config.js && node --check src/codex.js && node --check src/runtime-log.js && node --check src/watcher-lease.js && node --check src/bot.js && node --check src/monitor.js && node --check src/seed-session.js && node --check scripts/probe-codex-stream.js && node --check scripts/probe-inject-items.js && node --check scripts/read-inbox.js && node --check scripts/read-app-events.js && node --check scripts/watch-event-stream.js && node --check scripts/watcher-status.js && node --check scripts/send-discord-message.js && node --check scripts/frontstage-relay.js",
     "desktop:mac": "scripts/build-mac-widget.sh",
     "dc:send": "node scripts/send-discord-message.js",
     "frontstage:relay": "node scripts/frontstage-relay.js",
+    "watcher:status": "node scripts/watcher-status.js",
+    "watcher:stream": "node scripts/watch-event-stream.js",
+    "app-events:latest": "node scripts/read-app-events.js",
     "inbox:latest": "node scripts/read-inbox.js",
     "start": "node src/bot.js",
     "monitor": "node src/monitor.js",
     "probe:codex-stream": "node scripts/probe-codex-stream.js",
+    "probe:inject-items": "node scripts/probe-inject-items.js",
     "seed": "node src/seed-session.js"
   },
   "engines": {
