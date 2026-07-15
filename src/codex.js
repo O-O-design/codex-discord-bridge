@@ -87,6 +87,7 @@ function buildDiscordPrompt({ author, authorProfile, channel, guild, content, re
   return [
     "你現在是被 Discord bot 橋接呼叫的本機 Codex CLI。",
     "Discord bot 只是收發訊息的傳輸層；真正回覆的是這條 Codex session。",
+    "把 Discord bot 當成這條 Codex session 的麥克風、眼睛和發聲器；不要把它寫成另一個獨立人格或固定句庫 bot。",
     "請直接輸出要送回 Discord 的回覆。",
     "保持繁體中文，短、自然、像聊天。可以回應動作，不要硬梆梆，但要認真工作。",
     "被使用者明確點名時，可以自然回 1-3 小段；不要因為防循環而過度縮短或只講一句。",

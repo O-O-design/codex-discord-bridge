@@ -2,6 +2,10 @@
 
 This repository is being prepared as `codex-discord-bridge`.
 
+The public framing should stay clear: this project is a Discord input/output
+bridge for a local Codex CLI session. The Discord bot is the transport layer,
+not a separate chatbot personality.
+
 ## Before publishing
 
 - Choose a license and replace `UNLICENSED` in `package.json`.
@@ -13,6 +17,8 @@ This repository is being prepared as `codex-discord-bridge`.
 - Put private seed prompts in an ignored local file and set `CODEX_SEED_FILE`.
 - Replace any local room names, guild IDs, channel IDs, or user IDs with
   placeholders in docs and examples.
+- Link users to [PUBLISHING_GUIDE.md](PUBLISHING_GUIDE.md) for setup framing,
+  pitfalls, and the recommended public explanation.
 
 ## Supported local surfaces
 
@@ -27,4 +33,3 @@ This repository is being prepared as `codex-discord-bridge`.
 - A signed macOS app.
 - Automatic Discord application creation.
 - Stable parsing of Codex internal tool names.
-
