@@ -53,6 +53,38 @@ function listEnv(name) {
   return [...new Set(value.split(",").map((item) => item.trim()).filter(Boolean))];
 }
 
+function boolEnv(name, fallback) {
+  const value = process.env[name]?.trim().toLowerCase();
+
+  if (!value) {
+    return fallback;
+  }
+
+  if (["1", "true", "yes", "on"].includes(value)) {
+    return true;
+  }
+
+  if (["0", "false", "no", "off"].includes(value)) {
+    return false;
+  }
+
+  throw new Error(`Environment variable ${name} must be a boolean.`);
+}
+
+function enumEnv(name, fallback, allowed) {
+  const value = process.env[name]?.trim();
+
+  if (!value) {
+    return fallback;
+  }
+
+  if (!allowed.has(value)) {
+    throw new Error(`Environment variable ${name} must be one of: ${[...allowed].join(", ")}`);
+  }
+
+  return value;
+}
+
 function currentCodexSandbox() {
   const value = process.env.CODEX_SANDBOX?.trim();
   const allowed = new Set(["read-only", "workspace-write", "danger-full-access"]);
@@ -96,6 +128,17 @@ export function getConfig({ requireDiscord = true } = {}) {
     discordBatchWindowMs: intEnv("DISCORD_BATCH_WINDOW_MS", 1_500),
     discordSoloBatchWindowMs: intEnv("DISCORD_SOLO_BATCH_WINDOW_MS", 5_000),
     discordContextLimit: nonNegativeIntEnv("DISCORD_CONTEXT_LIMIT", 0),
+    discordImageAttachmentLimit: nonNegativeIntEnv("DISCORD_IMAGE_ATTACHMENT_LIMIT", 4),
+    discordMaxImageBytes: intEnv("DISCORD_MAX_IMAGE_BYTES", 10_000_000),
+    discordUploadLimit: nonNegativeIntEnv("DISCORD_UPLOAD_LIMIT", 4),
+    discordMaxUploadBytes: intEnv("DISCORD_MAX_UPLOAD_BYTES", 25_000_000),
+    discordDevApprovalMode: enumEnv(
+      "DISCORD_DEV_APPROVAL_MODE",
+      "heuristic",
+      new Set(["off", "heuristic", "always-write"])
+    ),
+    discordDevApprovalTimeoutMs: intEnv("DISCORD_DEV_APPROVAL_TIMEOUT_MS", 10 * 60_000),
+    discordPrivateReplyEnabled: boolEnv("DISCORD_PRIVATE_REPLY_ENABLED", true),
     discordBotLoopMaxTurns: nonNegativeIntEnv("DISCORD_BOT_LOOP_MAX_TURNS", 4),
     discordBotLoopWindowMs: intEnv("DISCORD_BOT_LOOP_WINDOW_MS", 10 * 60_000),
     discordBotLoopCooldownMs: intEnv("DISCORD_BOT_LOOP_COOLDOWN_MS", 5 * 60_000),
@@ -104,6 +147,7 @@ export function getConfig({ requireDiscord = true } = {}) {
     monitorPort: intEnv("MONITOR_PORT", 3899),
     memberRosterFile: memberRosterFile ? resolve(process.cwd(), memberRosterFile) : null,
     allowedBotAuthorIds: listEnv("DISCORD_ALLOWED_BOT_AUTHOR_IDS"),
+    dmUserIds: listEnv("DISCORD_DM_USER_IDS"),
     writeUserIds: listEnv("DISCORD_WRITE_USER_IDS")
   };
 

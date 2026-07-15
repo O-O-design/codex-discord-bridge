@@ -22,7 +22,10 @@ Discord allowlisted channel
 - Per-user sandbox gate: trusted users can use `CODEX_SANDBOX`; everyone else
   is forced to `read-only`.
 - Optional Discord reply-reference context.
+- Optional Discord image attachment input.
+- Optional allowlisted DM/private reply support.
 - Optional recent message context with a strict limit.
+- Development/run-code approval gate before write-capable Codex calls.
 - AI-bot loop guard to prevent infinite bot-to-bot chatter.
 - Local runtime monitor at `http://127.0.0.1:3899`.
 - Compact bridge status widget at `http://127.0.0.1:3899/widget`.
@@ -191,6 +194,8 @@ tmux.
 - `DISCORD_BLOCKED_CHANNEL_IDS`: denied channel/thread ids.
 - `DISCORD_BLOCKED_PARENT_CHANNEL_IDS`: denied parent/forum ids.
 - `DISCORD_ALLOWED_BOT_AUTHOR_IDS`: bot users allowed to trigger Codex.
+- `DISCORD_DM_USER_IDS`: users allowed to DM with the bridge or receive private
+  replies.
 - `DISCORD_WRITE_USER_IDS`: users allowed to run `CODEX_SANDBOX`; everyone else
   is read-only.
 - `CODEX_CLI_PATH`: optional Codex CLI path.
@@ -204,6 +209,16 @@ tmux.
   Codex replies.
 - `DISCORD_CONTEXT_LIMIT`: optional recent-channel context limit. `0` disables
   this.
+- `DISCORD_IMAGE_ATTACHMENT_LIMIT`: max image attachments to pass to Codex per
+  message.
+- `DISCORD_MAX_IMAGE_BYTES`: max downloaded image size.
+- `DISCORD_UPLOAD_LIMIT`: max local files Codex may ask the bridge to upload.
+- `DISCORD_MAX_UPLOAD_BYTES`: max local upload size.
+- `DISCORD_PRIVATE_REPLY_ENABLED`: enables `[[discord-private]]` private reply
+  routing for allowlisted DM users.
+- `DISCORD_DEV_APPROVAL_MODE`: `off`, `heuristic`, or `always-write`.
+- `DISCORD_DEV_APPROVAL_TIMEOUT_MS`: how long a pending development approval
+  stays valid.
 - `DISCORD_BOT_LOOP_MAX_TURNS`: bot-to-bot loop max turns.
 - `DISCORD_BOT_LOOP_WINDOW_MS`: bot-to-bot loop time window.
 - `DISCORD_BOT_LOOP_COOLDOWN_MS`: cooldown after loop limit.
@@ -229,6 +244,49 @@ Codex CLI stdout/stderr chunks are logged as `codex_cli_output`. The widget may
 show a real generic state such as `Codex 有新的執行輸出`. It does not claim
 specific tools such as web search or image generation unless a stable Codex CLI
 event format has been confirmed.
+
+## Images, Private Replies, And Uploads
+
+Image attachments from allowed Discord messages are downloaded locally and
+attached to `codex exec resume` with `--image`, so Codex can inspect them.
+
+Codex can ask the bridge to upload a local generated file by placing this on its
+own line:
+
+```text
+[[discord-upload:/absolute/path/to/file.png]]
+```
+
+Uploads are restricted to the project folder and system temp folders, and are
+size-limited.
+
+If `DISCORD_DM_USER_IDS` and `DISCORD_PRIVATE_REPLY_ENABLED=true` are set, Codex
+can place this on its own line to send the response privately to the message
+author:
+
+```text
+[[discord-private]]
+```
+
+The bridge does not create images by itself yet. It can pass input images to
+Codex and upload image files that Codex or another configured generator creates.
+
+## Development Approval Gate
+
+When `DISCORD_DEV_APPROVAL_MODE=heuristic`, messages that look like development
+work, command execution, installs, builds, deployment, file edits, or GitHub
+publishing are held before Codex receives a write-capable sandbox.
+
+Approve or cancel from Discord:
+
+```text
+批准 dev-...
+取消 dev-...
+```
+
+This gate is separate from external OAuth/login authorization. If Codex or a
+tool needs a browser/device-code login, the bridge reports that back instead of
+silently granting it through Discord.
 
 Use the probe script to inspect available stream signals:
 

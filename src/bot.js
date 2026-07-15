@@ -1,4 +1,7 @@
-import { Client, Events, GatewayIntentBits } from "discord.js";
+import { AttachmentBuilder, ChannelType, Client, Events, GatewayIntentBits, Partials } from "discord.js";
+import { mkdir, rm, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, extname, join, resolve, sep } from "node:path";
 import { askCodex } from "./codex.js";
 import { getConfig } from "./config.js";
 import { loadMemberRoster } from "./members.js";
@@ -12,8 +15,10 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.DirectMessages,
     GatewayIntentBits.MessageContent
-  ]
+  ],
+  partials: [Partials.Channel]
 });
 
 let codexQueue = Promise.resolve();
@@ -27,9 +32,25 @@ const allowedThreadIds = new Set(config.threadIds);
 const blockedChannelIds = new Set(config.blockedChannelIds);
 const blockedParentChannelIds = new Set(config.blockedParentChannelIds);
 const allowedBotAuthorIds = new Set(config.allowedBotAuthorIds);
+const dmUserIds = new Set(config.dmUserIds);
 const writeUserIds = new Set(config.writeUserIds);
 const pendingBatches = new Map();
+const pendingDevApprovals = new Map();
 const botLoopState = new Map();
+const projectRoot = resolve(process.cwd());
+const tmpRoots = [...new Set([tmpdir(), process.env.TMPDIR].filter(Boolean).map((item) => resolve(item)))];
+const imageExtensions = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif"]);
+const uploadDirectivePattern = /^\s*\[\[discord-upload:(.+?)\]\]\s*$/i;
+const privateDirectivePattern = /^\s*\[\[discord-private\]\]\s*$/i;
+const devApprovalPattern = /^\s*(?:批准|同意|approve|ok)\s+([a-z0-9-]+)\s*$/i;
+const devDenyPattern = /^\s*(?:拒絕|取消|deny|cancel)\s+([a-z0-9-]+)\s*$/i;
+const devKeywords = [
+  /寫(程式|code)|改(檔|程式|app|網站|repo)|修( bug|bug|錯|程式)?/iu,
+  /做(成|一個|個)?\s*(app|APP|網站|工具|功能|橋接|程式)|建立|新增|更新|打造|蓋(好|一個)?/iu,
+  /跑(程式|測試|test|build|npm|node|python|指令|命令)|執行|開發|部署|安裝套件/iu,
+  /\b(git|github|commit|push|npm|node|python|build|test|deploy|terminal|shell)\b/iu,
+  /終端機|版控|上傳 GitHub|上傳github|套件|依賴|server|伺服器/iu
+];
 
 function cleanMessageText(message) {
   return (
@@ -69,6 +90,14 @@ async function sendMessageChunks(channel, content) {
   }
 }
 
+function isDmMessage(message) {
+  return message.channel?.type === ChannelType.DM || !message.guildId;
+}
+
+function canDmUser(userId) {
+  return config.discordPrivateReplyEnabled && dmUserIds.has(userId);
+}
+
 function formatAuthor(user) {
   const profile = memberRoster.describeUser(user);
   const label = user.bot ? `${user.username} [bot]` : user.tag ?? user.username;
@@ -77,7 +106,9 @@ function formatAuthor(user) {
 }
 
 function excerptMessageContent(message) {
-  const raw = (message.content || "(無文字／可能是圖或貼圖)").replace(/[\r\n]+/g, " ⏎ ");
+  const attachmentCount = message.attachments?.size ?? 0;
+  const fallback = attachmentCount > 0 ? `(無文字／含 ${attachmentCount} 個附件)` : "(無文字／可能是圖或貼圖)";
+  const raw = (message.content || fallback).replace(/[\r\n]+/g, " ⏎ ");
 
   return raw.length > 200 ? `${raw.slice(0, 200)}...` : raw;
 }
@@ -108,7 +139,10 @@ async function getRecentContext(channel) {
         .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
         .map(async (item) => {
           const author = item.author ? formatAuthor(item.author) : "unknown";
-          const content = item.content?.trim() || "[message content unavailable]";
+          const content = [
+            item.content?.trim() || "",
+            summarizeMessageAttachments(item)
+          ].filter(Boolean).join("\n") || "[message content unavailable]";
           const replyContext = await describeReply(item);
 
           return [replyContext, `${author}: ${content}`].filter(Boolean).join("\n");
@@ -137,6 +171,10 @@ async function getRecentContext(channel) {
 }
 
 function isAllowedMessage(message) {
+  if (isDmMessage(message)) {
+    return dmUserIds.has(message.author.id);
+  }
+
   if (!message.guildId || !allowedGuildIds.has(message.guildId)) {
     return false;
   }
@@ -149,6 +187,10 @@ function isAllowedMessage(message) {
 }
 
 function blockedReason(message) {
+  if (isDmMessage(message)) {
+    return null;
+  }
+
   if (blockedChannelIds.has(message.channelId)) {
     return "blocked_channel";
   }
@@ -161,6 +203,10 @@ function blockedReason(message) {
 }
 
 function channelLabel(message) {
+  if (isDmMessage(message)) {
+    return `私訊 / ${message.author.tag}`;
+  }
+
   const name = message.channel?.name ?? message.channelId;
 
   return message.channel?.isThread?.() && message.channel.parent?.name
@@ -169,7 +215,319 @@ function channelLabel(message) {
 }
 
 function channelStateKey(message) {
-  return `${message.guildId}:${message.channelId}`;
+  return isDmMessage(message) ? `dm:${message.author.id}` : `${message.guildId}:${message.channelId}`;
+}
+
+function safeFileName(name, fallback) {
+  const safe = basename(name || fallback).replace(/[^A-Za-z0-9._-]/g, "_");
+  return safe || fallback;
+}
+
+function isImageAttachment(attachment) {
+  const contentType = attachment.contentType?.toLowerCase() ?? "";
+  const extension = extname(attachment.name ?? "").toLowerCase();
+
+  return contentType.startsWith("image/") || imageExtensions.has(extension);
+}
+
+function summarizeMessageAttachments(message) {
+  const attachments = [...(message.attachments?.values?.() ?? [])];
+
+  if (attachments.length === 0) {
+    return "";
+  }
+
+  return attachments.map((attachment) => {
+    const kind = isImageAttachment(attachment) ? "圖片" : "附件";
+    const size = attachment.size ? `，${Math.round(attachment.size / 1024)} KB` : "";
+    const type = attachment.contentType ? `，${attachment.contentType}` : "";
+
+    return `${kind}附件：${attachment.name ?? attachment.id}${type}${size}`;
+  }).join("\n");
+}
+
+async function downloadImageAttachments(message) {
+  if (config.discordImageAttachmentLimit === 0 || !message.attachments?.size) {
+    return [];
+  }
+
+  const images = [...message.attachments.values()]
+    .filter(isImageAttachment)
+    .slice(0, config.discordImageAttachmentLimit);
+
+  if (images.length === 0) {
+    return [];
+  }
+
+  const dir = resolve(process.cwd(), "state", "discord-images", message.id);
+  await mkdir(dir, { recursive: true });
+
+  const downloaded = [];
+  for (const [index, attachment] of images.entries()) {
+    if (attachment.size && attachment.size > config.discordMaxImageBytes) {
+      await appendRuntimeLog("image_attachment_skipped", {
+        summary: `圖片附件太大，已略過：${attachment.name ?? attachment.id}`,
+        messageId: message.id,
+        attachmentId: attachment.id,
+        size: attachment.size,
+        maxBytes: config.discordMaxImageBytes
+      });
+      continue;
+    }
+
+    try {
+      const response = await fetch(attachment.url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (buffer.byteLength > config.discordMaxImageBytes) {
+        await appendRuntimeLog("image_attachment_skipped", {
+          summary: `圖片附件下載後太大，已略過：${attachment.name ?? attachment.id}`,
+          messageId: message.id,
+          attachmentId: attachment.id,
+          size: buffer.byteLength,
+          maxBytes: config.discordMaxImageBytes
+        });
+        continue;
+      }
+
+      const extension = extname(attachment.name ?? "") || ".png";
+      const filename = safeFileName(attachment.name, `${index + 1}${extension}`);
+      const filePath = join(dir, `${index + 1}-${filename}`);
+      await writeFile(filePath, buffer);
+      downloaded.push({
+        path: filePath,
+        name: attachment.name ?? filename,
+        contentType: attachment.contentType ?? response.headers.get("content-type") ?? null,
+        size: buffer.byteLength,
+        url: attachment.url
+      });
+    } catch (error) {
+      await appendRuntimeLog("image_attachment_failed", {
+        summary: `圖片附件下載失敗：${attachment.name ?? attachment.id}，${error.message}`,
+        messageId: message.id,
+        attachmentId: attachment.id,
+        error: error.message
+      });
+    }
+  }
+
+  return downloaded;
+}
+
+function isPathInside(root, target) {
+  return target === root || target.startsWith(`${root}${sep}`);
+}
+
+function isAllowedUploadPath(filePath) {
+  const target = resolve(filePath);
+
+  return isPathInside(projectRoot, target) || tmpRoots.some((root) => isPathInside(root, target));
+}
+
+function parseResponseDirectives(response) {
+  const uploadPaths = [];
+  let privateReply = false;
+  const textLines = [];
+
+  for (const line of response.split(/\r?\n/)) {
+    const uploadMatch = line.match(uploadDirectivePattern);
+    if (uploadMatch) {
+      uploadPaths.push(uploadMatch[1].trim());
+      continue;
+    }
+
+    if (privateDirectivePattern.test(line)) {
+      privateReply = true;
+      continue;
+    }
+
+    textLines.push(line);
+  }
+
+  return {
+    text: textLines.join("\n").trim(),
+    uploadPaths,
+    privateReply
+  };
+}
+
+async function sendUploadFiles(channel, uploadPaths) {
+  const files = [];
+
+  for (const filePath of uploadPaths.slice(0, config.discordUploadLimit)) {
+    const resolvedPath = resolve(filePath);
+
+    if (!isAllowedUploadPath(resolvedPath)) {
+      await appendRuntimeLog("discord_upload_skipped", {
+        summary: `略過不允許的上傳路徑：${resolvedPath}`,
+        path: resolvedPath
+      });
+      continue;
+    }
+
+    try {
+      const file = await stat(resolvedPath);
+      if (!file.isFile() || file.size > config.discordMaxUploadBytes) {
+        await appendRuntimeLog("discord_upload_skipped", {
+          summary: `略過不符合限制的上傳檔案：${resolvedPath}`,
+          path: resolvedPath,
+          size: file.size,
+          maxBytes: config.discordMaxUploadBytes
+        });
+        continue;
+      }
+
+      files.push(new AttachmentBuilder(resolvedPath));
+    } catch (error) {
+      await appendRuntimeLog("discord_upload_skipped", {
+        summary: `上傳檔案不存在或無法讀取：${resolvedPath}`,
+        path: resolvedPath,
+        error: error.message
+      });
+    }
+  }
+
+  if (files.length > 0) {
+    await channel.send({ files });
+  }
+}
+
+async function sendCodexResponse(message, response) {
+  const directives = parseResponseDirectives(response);
+  const shouldDm = directives.privateReply && !isDmMessage(message) && canDmUser(message.author.id);
+  const targetChannel = shouldDm ? await message.author.createDM() : message.channel;
+
+  if (directives.text) {
+    await sendMessageChunks(targetChannel, directives.text);
+  }
+
+  if (directives.uploadPaths.length > 0) {
+    await sendUploadFiles(targetChannel, directives.uploadPaths);
+  }
+
+  if (shouldDm) {
+    await appendRuntimeLog("discord_private_reply", {
+      summary: `已改用私訊回覆 ${message.author.tag}`,
+      author: message.author.tag,
+      authorId: message.author.id,
+      uploadCount: directives.uploadPaths.length
+    });
+  }
+}
+
+function looksLikeDevRequest(batch) {
+  const text = batch.map((item) => item.content).join("\n");
+  return devKeywords.some((pattern) => pattern.test(text));
+}
+
+function newApprovalId() {
+  return `dev-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function parseApprovalCommand(content) {
+  const approve = content.match(devApprovalPattern);
+  if (approve) {
+    return { action: "approve", id: approve[1] };
+  }
+
+  const deny = content.match(devDenyPattern);
+  if (deny) {
+    return { action: "deny", id: deny[1] };
+  }
+
+  return null;
+}
+
+function canApproveDevJob(userId, approval) {
+  return userId === approval.requesterId || writeUserIds.has(userId);
+}
+
+async function maybeHandleApprovalCommand(message, content) {
+  const command = parseApprovalCommand(content);
+  if (!command) {
+    return false;
+  }
+
+  const approval = pendingDevApprovals.get(command.id);
+  if (!approval || !canApproveDevJob(message.author.id, approval)) {
+    return false;
+  }
+
+  clearTimeout(approval.timeout);
+  pendingDevApprovals.delete(command.id);
+
+  if (command.action === "deny") {
+    await message.channel.send(`已取消 ${command.id}。`);
+    await appendRuntimeLog("dev_approval_denied", {
+      summary: `開發執行已取消：${command.id}`,
+      approvalId: command.id,
+      author: message.author.tag,
+      authorId: message.author.id
+    });
+    return true;
+  }
+
+  await message.channel.send(`已批准 ${command.id}，我現在交給 Codex 處理。`);
+  await appendRuntimeLog("dev_approval_granted", {
+    summary: `開發執行已批准：${command.id}`,
+    approvalId: command.id,
+    author: message.author.tag,
+    authorId: message.author.id
+  });
+  enqueueCodexBatch(approval.message, approval.batch, { approvalId: command.id });
+  return true;
+}
+
+async function maybeRequestDevApproval(message, batch) {
+  const sandbox = sandboxForBatch(batch);
+  const mode = config.discordDevApprovalMode;
+  const needsApproval = mode === "always-write" || (mode === "heuristic" && looksLikeDevRequest(batch));
+
+  if (mode === "off" || sandbox === "read-only" || !needsApproval) {
+    return false;
+  }
+
+  const approvalId = newApprovalId();
+  const timeout = setTimeout(() => {
+    pendingDevApprovals.delete(approvalId);
+    appendRuntimeLog("dev_approval_expired", {
+      summary: `開發執行等待批准逾時：${approvalId}`,
+      approvalId
+    }).catch(() => {});
+  }, config.discordDevApprovalTimeoutMs);
+
+  pendingDevApprovals.set(approvalId, {
+    id: approvalId,
+    requesterId: message.author.id,
+    message,
+    batch,
+    timeout
+  });
+
+  await message.channel.send(
+    [
+      `這看起來會讓 Codex 進入開發/跑程式處理。`,
+      `要繼續請回覆：批准 ${approvalId}`,
+      `要取消請回覆：取消 ${approvalId}`
+    ].join("\n")
+  );
+  await appendRuntimeLog("dev_approval_requested", {
+    summary: `等待使用者批准開發執行：${approvalId}`,
+    approvalId,
+    author: message.author.tag,
+    authorId: message.author.id,
+    sandbox,
+    batchSize: batch.length,
+    timeoutMs: config.discordDevApprovalTimeoutMs
+  });
+  return true;
+}
+
+function looksLikeAuthorizationBlock(chunk) {
+  return /authorize|authorization|oauth|login|sign in|permission|approval|authenticate|device code|github/i.test(chunk);
 }
 
 function resetBotLoopGuard(message) {
@@ -242,6 +600,7 @@ client.once(Events.ClientReady, async (readyClient) => {
   console.log(`[codex-discord-bridge] allowed threads: ${config.threadIds.join(", ") || "(none)"}`);
   console.log(`[codex-discord-bridge] blocked channels: ${config.blockedChannelIds.join(", ") || "(none)"}`);
   console.log(`[codex-discord-bridge] blocked parent channels: ${config.blockedParentChannelIds.join(", ") || "(none)"}`);
+  console.log(`[codex-discord-bridge] allowed DM users: ${config.dmUserIds.length}`);
   await appendRuntimeLog("bridge_ready", {
     summary: `已登入 Discord：${readyClient.user.tag}`,
     botUserId: readyClient.user.id,
@@ -251,7 +610,8 @@ client.once(Events.ClientReady, async (readyClient) => {
     allowedParentChannelIds: config.parentChannelIds,
     allowedThreadIds: config.threadIds,
     blockedChannelIds: config.blockedChannelIds,
-    blockedParentChannelIds: config.blockedParentChannelIds
+    blockedParentChannelIds: config.blockedParentChannelIds,
+    dmUserCount: config.dmUserIds.length
   });
 });
 
@@ -308,10 +668,20 @@ client.on(Events.MessageCreate, async (message) => {
   }
 
   const content = cleanMessageText(message);
+  if (await maybeHandleApprovalCommand(message, content)) {
+    return;
+  }
+
   const replyContext = await describeReply(message);
+  const images = await downloadImageAttachments(message);
+  const attachmentSummary = summarizeMessageAttachments(message);
+  const contentWithAttachments = [
+    content === "[message content unavailable]" ? "" : content,
+    attachmentSummary
+  ].filter(Boolean).join("\n") || content;
   console.log(`[discord] accepted ${message.author.tag}: ${content}`);
   await appendRuntimeLog("message_accepted", {
-    summary: `${message.author.tag} 在 ${channelLabel(message)}：${limitText(content)}`,
+    summary: `${message.author.tag} 在 ${channelLabel(message)}：${limitText(contentWithAttachments)}`,
     messageId: message.id,
     guildId: message.guildId,
     guild: message.guild?.name ?? null,
@@ -321,11 +691,12 @@ client.on(Events.MessageCreate, async (message) => {
     author: message.author.tag,
     authorId: message.author.id,
     authorIsBot: message.author.bot,
-    content: limitText(content),
-    replyContext: limitText(replyContext)
+    content: limitText(contentWithAttachments),
+    replyContext: limitText(replyContext),
+    imageCount: images.length
   });
 
-  const batchKey = `${message.guildId}:${message.channelId}`;
+  const batchKey = channelStateKey(message);
   const batch = pendingBatches.get(batchKey) ?? {
     messages: [],
     timer: null,
@@ -338,9 +709,10 @@ client.on(Events.MessageCreate, async (message) => {
     authorId: message.author.id,
     authorProfile: memberRoster.describeUser(message.author),
     channel: channelLabel(message),
-    guild: message.guild?.name ?? message.guildId,
-    content,
-    replyContext
+    guild: message.guild?.name ?? (isDmMessage(message) ? "DM" : message.guildId),
+    content: contentWithAttachments,
+    replyContext,
+    images
   });
   batch.triggerMessage = message;
 
@@ -356,7 +728,16 @@ client.on(Events.MessageCreate, async (message) => {
   batch.timer = setTimeout(() => {
     pendingBatches.delete(batchKey);
 
-    enqueueCodexBatch(batch.triggerMessage, batch.messages);
+    maybeRequestDevApproval(batch.triggerMessage, batch.messages)
+      .then((requested) => {
+        if (!requested) {
+          enqueueCodexBatch(batch.triggerMessage, batch.messages);
+        }
+      })
+      .catch((error) => {
+        console.error("[approval] failed:", error);
+        enqueueCodexBatch(batch.triggerMessage, batch.messages);
+      });
   }, batchWindowMs);
 
   pendingBatches.set(batchKey, batch);
@@ -366,9 +747,10 @@ function sandboxForBatch(batch) {
   return batch.every((item) => writeUserIds.has(item.authorId)) ? config.codexSandbox : "read-only";
 }
 
-function enqueueCodexBatch(message, batch) {
+function enqueueCodexBatch(message, batch, options = {}) {
   const first = batch[0];
   const sandbox = sandboxForBatch(batch);
+  const images = batch.flatMap((item) => item.images ?? []);
   const jobId = `codex-${Date.now().toString(36)}-${(++nextJobNumber).toString(36)}`;
   const content =
     batch.length === 1
@@ -392,11 +774,14 @@ function enqueueCodexBatch(message, batch) {
     sandbox,
     queuedJobCount,
     activeJobId,
+    approvalId: options.approvalId ?? null,
+    imageCount: images.length,
     messages: batch.map((item) => ({
       messageId: item.messageId,
       author: item.author,
       authorId: item.authorId,
-      content: limitText(item.content)
+      content: limitText(item.content),
+      imageCount: item.images?.length ?? 0
     })),
     authors: batch.map((item) => ({
       author: item.author,
@@ -420,11 +805,14 @@ function enqueueCodexBatch(message, batch) {
         sandbox,
         queuedJobCount,
         activeJobId,
+        approvalId: options.approvalId ?? null,
+        imageCount: images.length,
         messages: batch.map((item) => ({
           messageId: item.messageId,
           author: item.author,
           authorId: item.authorId,
-          content: limitText(item.content)
+          content: limitText(item.content),
+          imageCount: item.images?.length ?? 0
         })),
         authors: batch.map((item) => ({
           author: item.author,
@@ -434,6 +822,7 @@ function enqueueCodexBatch(message, batch) {
       const typing = setInterval(() => {
         message.channel.sendTyping().catch(() => {});
       }, 8_000);
+      let authorizationDetected = false;
 
       try {
         let recentContext = "";
@@ -449,11 +838,13 @@ function enqueueCodexBatch(message, batch) {
             queuedJobCount,
             activeJobId,
             contextLimit: config.discordContextLimit,
+            imageCount: images.length,
             messages: batch.map((item) => ({
               messageId: item.messageId,
               author: item.author,
               authorId: item.authorId,
-              content: limitText(item.content)
+              content: limitText(item.content),
+              imageCount: item.images?.length ?? 0
             }))
           });
           recentContext = await getRecentContext(message.channel);
@@ -469,11 +860,13 @@ function enqueueCodexBatch(message, batch) {
           activeJobId,
           contextLimit: config.discordContextLimit,
           contextLength: recentContext.length,
+          imageCount: images.length,
           messages: batch.map((item) => ({
             messageId: item.messageId,
             author: item.author,
             authorId: item.authorId,
-            content: limitText(item.content)
+            content: limitText(item.content),
+            imageCount: item.images?.length ?? 0
           }))
         });
         const response = await askCodex(config, {
@@ -482,13 +875,32 @@ function enqueueCodexBatch(message, batch) {
           channel: first.channel,
           guild: first.guild,
           content,
+          imageCount: images.length,
+          imageNames: images.map((item) => item.name),
+          privateReplyAvailable: !isDmMessage(message) && canDmUser(message.author.id),
           recentContext,
           sandbox
         },
         {
           sandbox,
+          images: images.map((item) => item.path),
           onOutput: ({ source, chunk }) => {
             codexOutputEventCount += 1;
+            if (looksLikeAuthorizationBlock(chunk) && codexOutputEventCount <= 3) {
+              authorizationDetected = true;
+              appendRuntimeLog("codex_authorization_needed", {
+                summary: `Codex 可能正在等待授權或登入：${jobId}`,
+                jobId,
+                guild: first.guild,
+                channel: first.channel,
+                channelId: message.channelId,
+                sandbox,
+                source,
+                output: limitText(chunk, 400),
+                queuedJobCount,
+                activeJobId
+              }).catch(() => {});
+            }
 
             appendRuntimeLog("codex_cli_output", {
               summary: `Codex CLI 有新的 ${source} 輸出`,
@@ -506,7 +918,7 @@ function enqueueCodexBatch(message, batch) {
           }
         });
 
-        await sendMessageChunks(message.channel, response);
+        await sendCodexResponse(message, response);
         console.log("[codex] replied through Discord.");
         await appendRuntimeLog("codex_success", {
           summary: `Codex 任務完成：${jobId}，回覆 ${response.length} 字`,
@@ -519,11 +931,13 @@ function enqueueCodexBatch(message, batch) {
           queuedJobCount,
           responseLength: response.length,
           response: limitText(response),
+          imageCount: images.length,
           messages: batch.map((item) => ({
             messageId: item.messageId,
             author: item.author,
             authorId: item.authorId,
-            content: limitText(item.content)
+            content: limitText(item.content),
+            imageCount: item.images?.length ?? 0
           }))
         });
       } catch (error) {
@@ -531,8 +945,12 @@ function enqueueCodexBatch(message, batch) {
         if (error.stderr) {
           console.error(limitText(error.stderr, 2_000));
         }
+        const authFailure = authorizationDetected
+          || looksLikeAuthorizationBlock(`${error.message}\n${error.stdout ?? ""}\n${error.stderr ?? ""}`);
         await appendRuntimeLog("codex_failed", {
-          summary: `Codex 任務失敗：${jobId}，${error.message}`,
+          summary: authFailure
+            ? `Codex 任務可能卡在授權/登入：${jobId}`
+            : `Codex 任務失敗：${jobId}，${error.message}`,
           jobId,
           guild: first.guild,
           channel: first.channel,
@@ -543,19 +961,29 @@ function enqueueCodexBatch(message, batch) {
           error: error.message,
           stderr: limitText(error.stderr),
           stdout: limitText(error.stdout),
+          authorizationDetected: authFailure,
+          imageCount: images.length,
           messages: batch.map((item) => ({
             messageId: item.messageId,
             author: item.author,
             authorId: item.authorId,
-            content: limitText(item.content)
+            content: limitText(item.content),
+            imageCount: item.images?.length ?? 0
           }))
         });
-        await message.channel.send("我這邊叫 Codex CLI 的時候卡住了，先把這回合放掉，下一句可以繼續。");
+        await message.channel.send(authFailure
+          ? "我這邊叫 Codex CLI 時像是卡在外部登入或授權了。這種權限不會由 Discord 一路開通，需要妳回到 Codex/終端機完成授權後再叫我繼續。"
+          : "我這邊叫 Codex CLI 的時候卡住了，先把這回合放掉，下一句可以繼續。");
       } finally {
         if (activeJobId === jobId) {
           activeJobId = null;
         }
         clearInterval(typing);
+        for (const item of batch) {
+          for (const image of item.images ?? []) {
+            await rm(resolve(image.path, ".."), { recursive: true, force: true }).catch(() => {});
+          }
+        }
       }
     })
     .catch((error) => {

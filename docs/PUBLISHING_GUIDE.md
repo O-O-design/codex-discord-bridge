@@ -30,6 +30,10 @@ Discord bot 只是傳輸層，不該另外寫一套假人格、假 monitor 或�
 - 支援 channel/thread denylist，避免跑進不該去的房間。
 - 支援 `DISCORD_WRITE_USER_IDS`，只有可信使用者能觸發 `workspace-write`。
 - 加入引用回覆 context，Codex 可以看見使用者在回哪一則訊息。
+- 圖片附件會下載成本機檔案，透過 `codex exec resume --image` 交給 Codex 看圖。
+- 白名單使用者可跟 bridge 私訊；Codex 也能把適合私下談的回覆改成 DM。
+- Codex 可用 `[[discord-upload:/path]]` 要 bridge 上傳本機產物。
+- 開發、跑程式、改檔案類訊息可先要求 Discord 上批准，再交給 Codex 跑。
 - 同一人連續短訊息會等久一點，多人混聊仍用較短窗口，避免單人碎訊息被逐句切開。
 - `DISCORD_CONTEXT_LIMIT=0` 預設關閉最近訊息讀取，避免誤解成無限制讀頻道。
 - AI-bot loop guard 可以讓 AI 互聊幾輪後煞車。
@@ -71,11 +75,14 @@ DISCORD_GUILD_IDS=
 DISCORD_CHANNEL_IDS=
 DISCORD_THREAD_IDS=
 DISCORD_BLOCKED_CHANNEL_IDS=
+DISCORD_DM_USER_IDS=
 DISCORD_WRITE_USER_IDS=
 CODEX_SANDBOX=workspace-write
 DISCORD_BATCH_WINDOW_MS=1500
 DISCORD_SOLO_BATCH_WINDOW_MS=5000
 DISCORD_CONTEXT_LIMIT=0
+DISCORD_IMAGE_ATTACHMENT_LIMIT=4
+DISCORD_DEV_APPROVAL_MODE=heuristic
 ```
 
 穩定後再開：
@@ -90,7 +97,10 @@ DISCORD_CONTEXT_LIMIT=0
 - 不要做假旁白或假 monitor。狀態窗只顯示 runtime log 真實事件。
 - 不要預設讀 50 則最近訊息。公開版用 `DISCORD_CONTEXT_LIMIT=0` 最安全。
 - 不要用同一個 batching window 處理所有情境。單人連發可以等久一點，群聊才需要短窗口。
-- 不要把 `workspace-write` 開給所有人。用 `DISCORD_WRITE_USER_IDS` 鎖住可信使用者。
+- 不要把 DM 私訊開給所有人。只把 `DISCORD_DM_USER_IDS` 給可信使用者。
+- 不要讓 Codex 任意上傳任何本機路徑。bridge 只允許 project/tmp 下的檔案。
+- 不要把「生圖」寫成假狀態。沒有 configured generator 時，只支援上傳已產生的本機檔案。
+- 不要把 `workspace-write` 開給所有人。用 `DISCORD_WRITE_USER_IDS` 鎖住可信使用者，再用 `DISCORD_DEV_APPROVAL_MODE=heuristic` 讓開發/跑程式工作先停下來等 `批准 dev-...`。
 - 不要只設 allowlist，不設 denylist。正式社群一定會有不該接的房間。
 - 不要把 token、server id、私人 prompt、成員名單 commit 上 GitHub。
 - 不要讓 AI-bot 無限制互聊。保留 loop guard。

@@ -83,7 +83,18 @@ function runProcess(command, args, { cwd, onStderr, onStdout, timeoutMs }) {
   });
 }
 
-function buildDiscordPrompt({ author, authorProfile, channel, guild, content, recentContext, sandbox }) {
+function buildDiscordPrompt({
+  author,
+  authorProfile,
+  channel,
+  guild,
+  content,
+  imageCount = 0,
+  imageNames = [],
+  privateReplyAvailable = false,
+  recentContext,
+  sandbox
+}) {
   return [
     "你現在是被 Discord bot 橋接呼叫的本機 Codex CLI。",
     "Discord bot 只是收發訊息的傳輸層；真正回覆的是這條 Codex session。",
@@ -94,6 +105,11 @@ function buildDiscordPrompt({ author, authorProfile, channel, guild, content, re
     "如果目前這句不是叫你、也沒有明確需要你接話，可以輸出空白，讓 bridge 不送 Discord 訊息。",
     "不要輸出「這句是給誰」「我先不插話」「安靜聽著」這類路由判斷、內部判斷或 debug 旁白。",
     "多位 bot 互聊可以自然接幾輪；發現重複、失焦，或使用者畫線時再收住。",
+    "如果這次需要開發、跑程式、改檔案、安裝套件、push GitHub 或外部登入授權，先明確詢問使用者，不要自己硬跑。",
+    "如果你已經在本機產生圖片或檔案，且要交給 Discord，上傳檔案時最後單獨加一行 [[discord-upload:/absolute/path/to/file]]。",
+    privateReplyAvailable
+      ? "如果你判斷這次應該改成私下談，最後單獨加一行 [[discord-private]]；bridge 會把回覆改用私訊送出。"
+      : "",
     sandbox === "read-only"
       ? "這回合是 read-only：可以讀和回答，但不要聲稱已修改檔案。"
       : `這回合 sandbox 是 ${sandbox}。`,
@@ -104,6 +120,9 @@ function buildDiscordPrompt({ author, authorProfile, channel, guild, content, re
       : "",
     `使用者：${author}`,
     authorProfile ? `使用者身份資料：${authorProfile}` : "",
+    imageCount > 0
+      ? `圖片附件：已附上 ${imageCount} 張圖片${imageNames.length ? `（${imageNames.join(", ")}）` : ""}，請直接看圖回答。`
+      : "",
     "",
     recentContext ? `最近頻道上下文（舊到新）：\n${recentContext}\n` : "",
     "使用者訊息：",
@@ -161,10 +180,14 @@ export async function askCodex(config, messageContext, options = {}) {
     "resume",
     "--skip-git-repo-check",
     "-o",
-    outputFile,
-    sessionId,
-    prompt
+    outputFile
   ];
+
+  for (const imagePath of options.images ?? []) {
+    args.push("--image", imagePath);
+  }
+
+  args.push(sessionId, prompt);
 
   try {
     await runProcess(config.codexCliPath, args, {
