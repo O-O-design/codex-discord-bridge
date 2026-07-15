@@ -123,6 +123,13 @@ export function getConfig({ requireDiscord = true } = {}) {
     blockedParentChannelIds,
     codexCliPath: process.env.CODEX_CLI_PATH?.trim() || defaultCodexCliPath(),
     codexSessionFile: resolve(process.cwd(), codexSessionFile),
+    codexAppThreadId: process.env.CODEX_APP_THREAD_ID?.trim() || null,
+    codexAppRelayStateFile: resolve(
+      process.cwd(),
+      process.env.CODEX_APP_RELAY_STATE_FILE?.trim() || "state/frontstage-relay-state.json"
+    ),
+    codexAppRelayPollMs: intEnv("CODEX_APP_RELAY_POLL_MS", 1_000),
+    codexAppRelayReplayExisting: boolEnv("CODEX_APP_RELAY_REPLAY_EXISTING", false),
     codexSandbox: currentCodexSandbox(),
     codexTimeoutMs: intEnv("CODEX_TIMEOUT_MS", 180_000),
     discordBatchWindowMs: intEnv("DISCORD_BATCH_WINDOW_MS", 1_500),

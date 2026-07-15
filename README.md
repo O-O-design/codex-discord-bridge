@@ -298,6 +298,34 @@ Read recent inbox items:
 npm run inbox:latest -- 5
 ```
 
+### Connect the inbox to one Codex App task
+
+`inbox` mode only collects Discord messages. To let one existing Codex App task
+receive those messages as its next user turns, set its task ID and start the
+experimental relay in a second terminal:
+
+```dotenv
+CODEX_APP_THREAD_ID=your-codex-task-id
+CODEX_APP_RELAY_REPLAY_EXISTING=false
+```
+
+```bash
+npm run frontstage:relay
+```
+
+The relay uses Codex's local `app-server` protocol to resume the selected task,
+then sends `turn/start` with the batched Discord message and any local image
+attachments. It waits for the final assistant message before sending the reply
+back to Discord. Development turns use `on-request` approval and should still
+be approved in Codex. On first start, old inbox entries are baselined so they
+are not replayed; set `CODEX_APP_RELAY_REPLAY_EXISTING=true` only when you
+intentionally want to replay them.
+
+This is an experimental local integration. The relay must run on the same
+machine and under the same Codex login as the selected task. Claude Code can
+consume the same inbox through a separate adapter, but it remains a separate
+agent; do not let both adapters publish replies for the same inbox entry.
+
 After a foreground Codex task decides what to say, send the response through the
 bot:
 

@@ -35,6 +35,7 @@ Discord bot 只是傳輸層，不該另外寫一套假人格、假 monitor 或�
 - Codex 可用 `[[discord-upload:/path]]` 要 bridge 上傳本機產物。
 - 開發、跑程式、改檔案類訊息可先要求 Discord 上批准，再交給 Codex 跑。
 - 若不想讓背景 Codex 自動回覆，可用 `DISCORD_DELIVERY_MODE=inbox`，只把 Discord 訊息收進前台 inbox，交給使用中的 Codex 任務讀取與決定。
+- 若要把 inbox 接到一個已開啟的 Codex App task，可在自用 `.env` 設定 `CODEX_APP_THREAD_ID`，再執行 `npm run frontstage:relay`。公開版預設不填這個值，避免未經選擇就喚醒私人 task。
 - 同一人連續短訊息會等久一點，多人混聊仍用較短窗口，避免單人碎訊息被逐句切開。
 - `DISCORD_CONTEXT_LIMIT=0` 預設關閉最近訊息讀取，避免誤解成無限制讀頻道。
 - AI-bot loop guard 可以讓 AI 互聊幾輪後煞車。
@@ -105,6 +106,7 @@ DISCORD_DEV_APPROVAL_MODE=heuristic
 - 不要把「生圖」寫成假狀態。沒有 configured generator 時，只支援上傳已產生的本機檔案。
 - 不要把 `workspace-write` 開給所有人。用 `DISCORD_WRITE_USER_IDS` 鎖住可信使用者，再用 `DISCORD_DEV_APPROVAL_MODE=heuristic` 讓開發/跑程式工作先停下來等 `批准 dev-...`。
 - 如果使用者要的是「前台的我」而不是背景代理，請用 inbox mode，不要讓 bridge 直接呼叫 `codex exec` 自動回。
+- relay 只應有一個 AI adapter 發布回覆；Claude Code 可以讀同一個 inbox 做審閱，但不要和 Codex relay 同時回同一筆訊息。
 - 不要只設 allowlist，不設 denylist。正式社群一定會有不該接的房間。
 - 不要把 token、server id、私人 prompt、成員名單 commit 上 GitHub。
 - 不要讓 AI-bot 無限制互聊。保留 loop guard。

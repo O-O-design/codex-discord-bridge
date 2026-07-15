@@ -86,6 +86,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let bridge = self.runScript("scripts/start-tmux.sh", root: root)
                 try self.ensureSuccess(bridge, label: "啟動 bridge")
 
+                let relay = self.runScript("scripts/start-relay-tmux.sh", root: root)
+                try self.ensureSuccess(relay, label: "啟動前台 relay")
+
                 self.loadStatus("正在啟動狀態小窗", "等待 monitor 開始回報健康狀態。")
                 let monitor = self.runScript("scripts/start-monitor-tmux.sh", root: root)
                 try self.ensureSuccess(monitor, label: "啟動 monitor")

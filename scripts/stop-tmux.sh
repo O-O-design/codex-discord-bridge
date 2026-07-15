@@ -5,6 +5,9 @@ SESSION="codex-discord-bridge"
 LEGACY_SESSION="oo-bridge"
 TMUX_BIN="${TMUX_BIN:-$(command -v tmux)}"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+"$SCRIPT_DIR/stop-relay-tmux.sh"
+
 if "$TMUX_BIN" has-session -t "=$SESSION" 2>/dev/null; then
   "$TMUX_BIN" kill-session -t "=$SESSION"
   echo "stopped tmux session: $SESSION"
