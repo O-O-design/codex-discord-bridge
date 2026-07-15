@@ -198,7 +198,10 @@ tmux.
 - `CODEX_SEED_FILE`: default `memory/default-seed.md`.
 - `CODEX_SANDBOX`: `read-only`, `workspace-write`, or `danger-full-access`.
 - `CODEX_TIMEOUT_MS`: per-Codex-call timeout.
-- `DISCORD_BATCH_WINDOW_MS`: short-message batching window.
+- `DISCORD_BATCH_WINDOW_MS`: multi-author short-message batching window.
+- `DISCORD_SOLO_BATCH_WINDOW_MS`: single-author short-message batching window.
+  Use a larger value here so one person can send several short fragments before
+  Codex replies.
 - `DISCORD_CONTEXT_LIMIT`: optional recent-channel context limit. `0` disables
   this.
 - `DISCORD_BOT_LOOP_MAX_TURNS`: bot-to-bot loop max turns.

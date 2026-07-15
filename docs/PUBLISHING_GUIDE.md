@@ -30,6 +30,7 @@ Discord bot 只是傳輸層，不該另外寫一套假人格、假 monitor 或�
 - 支援 channel/thread denylist，避免跑進不該去的房間。
 - 支援 `DISCORD_WRITE_USER_IDS`，只有可信使用者能觸發 `workspace-write`。
 - 加入引用回覆 context，Codex 可以看見使用者在回哪一則訊息。
+- 同一人連續短訊息會等久一點，多人混聊仍用較短窗口，避免單人碎訊息被逐句切開。
 - `DISCORD_CONTEXT_LIMIT=0` 預設關閉最近訊息讀取，避免誤解成無限制讀頻道。
 - AI-bot loop guard 可以讓 AI 互聊幾輪後煞車。
 - Runtime monitor 和 `/widget` 小窗顯示真實事件、排隊、處理中、完成紀錄。
@@ -72,6 +73,8 @@ DISCORD_THREAD_IDS=
 DISCORD_BLOCKED_CHANNEL_IDS=
 DISCORD_WRITE_USER_IDS=
 CODEX_SANDBOX=workspace-write
+DISCORD_BATCH_WINDOW_MS=1500
+DISCORD_SOLO_BATCH_WINDOW_MS=5000
 DISCORD_CONTEXT_LIMIT=0
 ```
 
@@ -86,6 +89,7 @@ DISCORD_CONTEXT_LIMIT=0
 - 不要把 Discord bot 寫成另一個 AI。它只是橋，不是主體。
 - 不要做假旁白或假 monitor。狀態窗只顯示 runtime log 真實事件。
 - 不要預設讀 50 則最近訊息。公開版用 `DISCORD_CONTEXT_LIMIT=0` 最安全。
+- 不要用同一個 batching window 處理所有情境。單人連發可以等久一點，群聊才需要短窗口。
 - 不要把 `workspace-write` 開給所有人。用 `DISCORD_WRITE_USER_IDS` 鎖住可信使用者。
 - 不要只設 allowlist，不設 denylist。正式社群一定會有不該接的房間。
 - 不要把 token、server id、私人 prompt、成員名單 commit 上 GitHub。

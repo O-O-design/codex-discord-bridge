@@ -348,11 +348,16 @@ client.on(Events.MessageCreate, async (message) => {
     clearTimeout(batch.timer);
   }
 
+  const authorIds = new Set(batch.messages.map((item) => item.authorId));
+  const batchWindowMs = authorIds.size === 1
+    ? config.discordSoloBatchWindowMs
+    : config.discordBatchWindowMs;
+
   batch.timer = setTimeout(() => {
     pendingBatches.delete(batchKey);
 
     enqueueCodexBatch(batch.triggerMessage, batch.messages);
-  }, config.discordBatchWindowMs);
+  }, batchWindowMs);
 
   pendingBatches.set(batchKey, batch);
 });

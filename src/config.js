@@ -94,6 +94,7 @@ export function getConfig({ requireDiscord = true } = {}) {
     codexSandbox: currentCodexSandbox(),
     codexTimeoutMs: intEnv("CODEX_TIMEOUT_MS", 180_000),
     discordBatchWindowMs: intEnv("DISCORD_BATCH_WINDOW_MS", 1_500),
+    discordSoloBatchWindowMs: intEnv("DISCORD_SOLO_BATCH_WINDOW_MS", 5_000),
     discordContextLimit: nonNegativeIntEnv("DISCORD_CONTEXT_LIMIT", 0),
     discordBotLoopMaxTurns: nonNegativeIntEnv("DISCORD_BOT_LOOP_MAX_TURNS", 4),
     discordBotLoopWindowMs: intEnv("DISCORD_BOT_LOOP_WINDOW_MS", 10 * 60_000),
