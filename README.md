@@ -92,6 +92,30 @@ http://127.0.0.1:3899
 http://127.0.0.1:3899/widget
 ```
 
+## 客製化
+
+公開版預設會保持通用、不綁個人設定。自用時先改下面幾個地方就好：
+
+```text
+.env
+memory/default-seed.md 或你自己的私人 CODEX_SEED_FILE
+src/monitor.js
+```
+
+常見可改區塊：
+
+- Bot 身分、Discord 伺服器/頻道/thread 白名單：改 `.env`。
+- Codex 的私人行為設定、稱呼、關係脈絡：另外建立私人 seed 檔，然後
+  在 `.env` 設定 `CODEX_SEED_FILE=memory/your-private-seed.md`。
+- 小窗標題、徽章、畫面文字：改 `src/monitor.js` 裡的
+  `widget-badge`、`widget-kicker`、`widget-title` 附近。
+- 小窗顏色、透明感、間距：改 `src/monitor.js` 開頭的 CSS 變數，以及
+  `body.widget` 附近的 widget 專用 CSS。
+- 要做公開版時：README 和預設 seed 保持中性，把私人名字、伺服器 id、
+  個人 prompt 放在本機忽略檔。
+
+不要提交 `.env`、私人 seed、Discord token、個人伺服器 id、成員名單。
+
 ## Customize
 
 The public defaults are intentionally generic. For a personal bridge, edit only
